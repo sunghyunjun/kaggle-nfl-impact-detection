@@ -2,3 +2,4 @@ __pycache__/
 .venv
 
 dataset/
+nfl-impact-detection.zip
