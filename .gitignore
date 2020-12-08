@@ -1,6 +1,12 @@
 __pycache__/
 .venv
+.ipynb_checkpoints
+.mypy_cache
+.vscode
+*.mp4
+lightning_logs*
 
 dataset/
+
 nfl-impact-detection.zip
-kaggle-nfl-impact-detection.code-workspace
+notebook/
