@@ -1,70 +1,28 @@
-import argparse
+from argparse import ArgumentParser
 import os
 import random
 
+import albumentations as A
+from albumentations.pytorch.transforms import ToTensorV2
 import cv2
-
 import numpy as np
 import pandas as pd
 
 import torch
+from torch import nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 
-from effdet import create_model
-
-import albumentations as A
-from albumentations.pytorch.transforms import ToTensorV2
-
 import pytorch_lightning as pl
-
-
-def get_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("root", metavar="DIR", help="path to dataset")
-    parser.add_argument("--gpus", default=None)
-    args = parser.parse_args()
-    return args
-
-
-def set_seed_everything(seed):
-    random.seed(seed)
-    os.environ["PYTHONHASHSEED"] = str(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-
-    torch.backends.cudnn.benchmark = True
-    torch.backends.cudnn.deterministic = False
-
-
-def make_batch(samples):
-    image = torch.stack([sample["image"] for sample in samples])
-    bboxes = [sample["bboxes"] for sample in samples]
-    labels = [sample["labels"] for sample in samples]
-
-    return {"image": image, "bboxes": bboxes, "labels": labels}
-
-
-def get_train_transform():
-    return A.Compose(
-        [
-            A.Resize(height=512, width=512, p=1.0),
-            ToTensorV2(p=1.0),
-        ],
-        bbox_params=A.BboxParams(
-            format="pascal_voc", min_area=0, min_visibility=0, label_fields=["labels"]
-        ),
-    )
+from effdet import create_model
 
 
 class HelmetDataset(Dataset):
-    def __init__(self, df, image_ids, transform=None, root_dir="../dataset"):
+    def __init__(self, df, image_ids, transform=None, data_dir="./dataset"):
         super().__init__()
         self.transform = transform
         self.df = df
-        self.root_dir = root_dir
+        self.data_dir = data_dir
         self.image_ids = image_ids
         self.length = len(self.image_ids)
 
@@ -96,8 +54,7 @@ class HelmetDataset(Dataset):
 
     def load_image_boxes(self, index):
         image_id = self.image_ids[index]
-        # image_path = os.path.join("../dataset/images", image_id)
-        image_path = os.path.join(self.root_dir, "images", image_id)
+        image_path = os.path.join(self.data_dir, "images", image_id)
         image = cv2.imread(image_path, cv2.IMREAD_COLOR).copy().astype(np.float32)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB).astype(np.float32)
         image /= 255.0
@@ -111,6 +68,95 @@ class HelmetDataset(Dataset):
         bboxes = np.array([bboxes_xmin, bboxes_ymin, bboxes_xmax, bboxes_ymax]).T
 
         return image, bboxes
+
+
+class HelmetDataModule(pl.LightningDataModule):
+    def __init__(self, data_dir: str = "./dataset", batch_size=32, num_workers=2):
+        super().__init__()
+        self.data_dir = data_dir
+        self.batch_size = batch_size
+        self.num_workers = num_workers
+        self.filepath = os.path.join(self.data_dir, "image_labels.csv")
+        self.image_labels = pd.read_csv(self.filepath)
+        self.image_ids = self.image_labels.image.unique()
+
+    def setup(self, stage=None):
+        valid_split = 0.1
+        valid_index = int(len(self.image_ids) * valid_split)
+        train_image_ids = self.image_ids[:-valid_index]
+        valid_image_ids = self.image_ids[-valid_index:]
+
+        self.train_dataset = HelmetDataset(
+            self.image_labels,
+            train_image_ids,
+            transform=self.get_train_transform(),
+            data_dir=self.data_dir,
+        )
+        self.valid_dataset = HelmetDataset(
+            self.image_labels,
+            valid_image_ids,
+            transform=self.get_valid_transform(),
+            data_dir=self.data_dir,
+        )
+
+    # TODO: for custom batch, define pin_memory()
+    # https://pytorch.org/docs/stable/data.html#memory-pinning
+    def train_dataloader(self):
+        train_loader = DataLoader(
+            self.train_dataset,
+            batch_size=self.batch_size,
+            shuffle=True,
+            num_workers=self.num_workers,
+            pin_memory=True,
+            collate_fn=self.make_batch,
+        )
+        return train_loader
+
+    def val_dataloader(self):
+        valid_loader = DataLoader(
+            self.valid_dataset,
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=self.num_workers,
+            pin_memory=True,
+            collate_fn=self.make_batch,
+        )
+        return valid_loader
+
+    def make_batch(self, samples):
+        image = torch.stack([sample["image"] for sample in samples])
+        bboxes = [sample["bboxes"] for sample in samples]
+        labels = [sample["labels"] for sample in samples]
+
+        return {"image": image, "bboxes": bboxes, "labels": labels}
+
+    def get_train_transform(self):
+        return A.Compose(
+            [
+                A.Resize(height=512, width=512, p=1.0),
+                ToTensorV2(p=1.0),
+            ],
+            bbox_params=A.BboxParams(
+                format="pascal_voc",
+                min_area=0,
+                min_visibility=0,
+                label_fields=["labels"],
+            ),
+        )
+
+    def get_valid_transform(self):
+        return A.Compose(
+            [
+                A.Resize(height=512, width=512, p=1.0),
+                ToTensorV2(p=1.0),
+            ],
+            bbox_params=A.BboxParams(
+                format="pascal_voc",
+                min_area=0,
+                min_visibility=0,
+                label_fields=["labels"],
+            ),
+        )
 
 
 class HelmetDetector(pl.LightningModule):
@@ -130,10 +176,25 @@ class HelmetDetector(pl.LightningModule):
         class_loss = output["class_loss"]
         box_loss = output["box_loss"]
 
+        self.log("tr_loss", loss)
+
         return loss
 
+    # TODO: check target['img_scale'], target['img_size']
     def validation_step(self, batch, batch_idx):
-        pass
+        image = batch["image"]
+        boxes = batch["bboxes"]
+        labels = batch["labels"]
+        output = self.model(
+            image, {"bbox": boxes, "cls": labels, "img_scale": None, "img_size": None}
+        )
+        loss = output["loss"]
+        class_loss = output["class_loss"]
+        box_loss = output["box_loss"]
+
+        self.log("val_loss", loss)
+
+        return loss
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
@@ -153,42 +214,42 @@ class HelmetDetector(pl.LightningModule):
         return model
 
 
-def main(hparams):
-    set_seed_everything(0)
+def main():
+    pl.seed_everything(0)
 
-    ROOT_DIR = hparams.root
+    # ----------
+    # args
+    # ----------
+    parser = ArgumentParser()
+    parser.add_argument("--root", metavar="DIR", help="path to dataset")
+    parser.add_argument("--batch_size", default=32, type=int)
+    parser.add_argument("--num_workers", default=2, type=int)
+    parser = pl.Trainer.add_argparse_args(parser)
+    args = parser.parse_args()
 
-    filepath = os.path.join(ROOT_DIR, "image_labels.csv")
-
-    # image_labels = pd.read_csv("../dataset/image_labels.csv")
-    image_labels = pd.read_csv(filepath)
-    image_ids = image_labels.image.unique()
-
-    valid_index = int(len(image_ids) * 0.1)
-    train_image_ids = image_ids[:-valid_index]
-    valid_image_ids = image_ids[-valid_index:]
-
-    train_dataset = HelmetDataset(
-        image_labels,
-        train_image_ids,
-        transform=get_train_transform(),
-        root_dir=ROOT_DIR,
-    )
-    valid_dataset = HelmetDataset(
-        image_labels, valid_image_ids, transform=None, root_dir=ROOT_DIR
+    # ----------
+    # data
+    # ----------
+    dm = HelmetDataModule(
+        data_dir=args.root, batch_size=args.batch_size, num_workers=args.num_workers
     )
 
-    train_loader = DataLoader(
-        train_dataset, batch_size=4, shuffle=True, collate_fn=make_batch
-    )
-
+    # ----------
+    # model
+    # ----------
     helmet_detector = HelmetDetector()
 
-    # trainer = pl.Trainer(max_epochs=1, gpus=hparams.gpus)
-    trainer = pl.Trainer(max_epochs=1, gpus=1)
-    trainer.fit(helmet_detector, train_loader)
+    # ----------
+    # training
+    # ----------
+    trainer = pl.Trainer.from_argparse_args(args)
+    trainer.fit(helmet_detector, dm)
+
+    # ----------
+    # cli example
+    # ----------
+    # python train-helmet.py --root=../dataset --batch_size=4 --num_workers=4 --max_epochs=1 --limit_train_batches=10 --limit_val_batches=10
 
 
 if __name__ == "__main__":
-    args = get_args()
-    main(args)
+    main()
