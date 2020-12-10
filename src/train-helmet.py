@@ -162,11 +162,11 @@ class HelmetDataModule(pl.LightningDataModule):
 
 
 class HelmetDetector(pl.LightningModule):
-    def __init__(self, init_lr: float = 1e-3, weight_decay: float = 1e-5):
+    def __init__(self, args):
         super().__init__()
         self.model = self.get_model()
-        self.init_lr = init_lr
-        self.weight_decay = weight_decay
+        self.init_lr = args.init_lr
+        self.weight_decay = args.weight_decay
 
     def forward(self, x):
         pass
@@ -222,6 +222,13 @@ class HelmetDetector(pl.LightningModule):
         )
         return model
 
+    @staticmethod
+    def add_model_specific_args(parent_parser):
+        parser = ArgumentParser(parents=[parent_parser], add_help=False)
+        parser.add_argument("--init_lr", type=float, default=1e-3)
+        parser.add_argument("--weight_decay", type=float, default=1e-5)
+        return parser
+
 
 def main():
     pl.seed_everything(0)
@@ -230,12 +237,11 @@ def main():
     # args
     # ----------
     parser = ArgumentParser()
-    parser.add_argument("--root", metavar="DIR", help="path to dataset")
+    parser.add_argument("--exp_name", default="Test")
+    parser.add_argument("--dataset_dir", metavar="DIR", help="path to dataset")
     parser.add_argument("--batch_size", default=32, type=int)
     parser.add_argument("--num_workers", default=2, type=int)
-    parser.add_argument("--init_lr", default=1e-3, type=float)
-    parser.add_argument("--weight_decay", default=1e-5, type=float)
-    parser.add_argument("--exp_name", default="Test")
+    parser = HelmetDetector.add_model_specific_args(parser)
     parser = pl.Trainer.add_argparse_args(parser)
     args = parser.parse_args()
 
@@ -246,7 +252,12 @@ def main():
         api_key="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vdWkubmVwdHVuZS5haSIsImFwaV91cmwiOiJodHRwczovL3VpLm5lcHR1bmUuYWkiLCJhcGlfa2V5IjoiMzdiNWQ2YWItZmYwZi00NTMyLWI0MTAtNDc3MTYxMTg0ZWMzIn0=",
         project_name="sunghyun.jun/sandbox",
         experiment_name=args.exp_name,
-        params={"init_lr": args.init_lr},
+        params={
+            "batch_size": args.batch_size,
+            "num_workers": args.num_workers,
+            "init_lr": args.init_lr,
+            "weight_decay": args.weight_decay,
+        },
         tags=["pytorch-lightning"],
     )
 
@@ -254,21 +265,22 @@ def main():
     # data
     # ----------
     dm = HelmetDataModule(
-        data_dir=args.root, batch_size=args.batch_size, num_workers=args.num_workers
+        data_dir=args.dataset_dir,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
     )
 
     # ----------
     # model
     # ----------
-    helmet_detector = HelmetDetector(
-        init_lr=args.init_lr, weight_decay=args.weight_decay
-    )
+    helmet_detector = HelmetDetector(args)
     checkpoint_callback = ModelCheckpoint(
         monitor="val_loss",
         filename="helmet-detector-{epoch:02d}-{val_loss:.2f}",
         save_top_k=3,
         mode="min",
     )
+    print(helmet_detector.hparams)
 
     # ----------
     # training
@@ -281,7 +293,7 @@ def main():
     # ----------
     # cli example
     # ----------
-    # python train-helmet.py --root=../dataset --batch_size=4 --num_workers=4 --max_epochs=1 --limit_train_batches=10 --limit_val_batches=10
+    # python train-helmet.py --exp_name=Test --dataset_dir=../dataset --batch_size=4 --num_workers=4 --max_epochs=1 --init_lr=1e-3 --weight_decay=1e-5 --limit_train_batches=10 --limit_val_batches=10
 
 
 if __name__ == "__main__":
