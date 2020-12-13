@@ -4,7 +4,6 @@ import random
 
 import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
-import cv2
 import numpy as np
 import pandas as pd
 
@@ -18,15 +17,53 @@ from pytorch_lightning.loggers import NeptuneLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
 from effdet import create_model
 
+from PIL import Image
+from google.cloud import storage
+
+
+def download_blob(bucket_name, source_blob_name, destination_file_name):
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.blob(source_blob_name)
+    blob.download_to_filename(destination_file_name)
+
+
+def pil_loader(path):
+    with open(path, "rb") as f:
+        with Image.open(f) as img:
+            return img.convert("RGB")
+
 
 class HelmetDataset(Dataset):
-    def __init__(self, df, image_ids, transform=None, data_dir="./dataset"):
+    def __init__(
+        self,
+        data_dir="../dataset",
+        dataset_type="train",
+        valid_split=0.1,
+        loader=pil_loader,
+        transform=None,
+    ):
         super().__init__()
-        self.transform = transform
-        self.df = df
         self.data_dir = data_dir
-        self.image_ids = image_ids
+        self.dataset_type = dataset_type
+        self.valid_split = valid_split
+        self.loader = loader
+        self.transform = transform
+        self.filepath = os.path.join(self.data_dir, "image_labels.csv")
+        self.image_labels = pd.read_csv(self.filepath)
+        self.image_ids = self.get_image_ids()
         self.length = len(self.image_ids)
+
+    def get_image_ids(self):
+        image_ids = self.image_labels.image.unique()
+        valid_index = int(len(image_ids) * self.valid_split)
+        train_image_ids = image_ids[:-valid_index]
+        valid_image_ids = image_ids[-valid_index:]
+
+        if self.dataset_type == "train":
+            return train_image_ids
+        elif self.dataset_type == "valid":
+            return valid_image_ids
 
     def __getitem__(self, index: int):
         image, bboxes = self.load_image_boxes(index)
@@ -57,11 +94,12 @@ class HelmetDataset(Dataset):
     def load_image_boxes(self, index):
         image_id = self.image_ids[index]
         image_path = os.path.join(self.data_dir, "images", image_id)
-        image = cv2.imread(image_path, cv2.IMREAD_COLOR).copy().astype(np.float32)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB).astype(np.float32)
+
+        image = self.loader(image_path)
+        image = np.array(image, dtype=np.float32)
         image /= 255.0
 
-        records = self.df.loc[self.df["image"] == image_id]
+        records = self.image_labels.loc[self.image_labels["image"] == image_id]
         boxes = records[["left", "width", "top", "height"]].values
         bboxes_xmin = boxes[:, 0]  # left
         bboxes_ymin = boxes[:, 2]  # top
@@ -73,32 +111,28 @@ class HelmetDataset(Dataset):
 
 
 class HelmetDataModule(pl.LightningDataModule):
-    def __init__(self, data_dir: str = "./dataset", batch_size=32, num_workers=2):
+    def __init__(self, data_dir: str = "../dataset", batch_size=32, num_workers=2):
         super().__init__()
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.num_workers = num_workers
-        self.filepath = os.path.join(self.data_dir, "image_labels.csv")
-        self.image_labels = pd.read_csv(self.filepath)
-        self.image_ids = self.image_labels.image.unique()
 
     def setup(self, stage=None):
         valid_split = 0.1
-        valid_index = int(len(self.image_ids) * valid_split)
-        train_image_ids = self.image_ids[:-valid_index]
-        valid_image_ids = self.image_ids[-valid_index:]
 
         self.train_dataset = HelmetDataset(
-            self.image_labels,
-            train_image_ids,
-            transform=self.get_train_transform(),
             data_dir=self.data_dir,
+            dataset_type="train",
+            valid_split=valid_split,
+            loader=pil_loader,
+            transform=self.get_train_transform(),
         )
         self.valid_dataset = HelmetDataset(
-            self.image_labels,
-            valid_image_ids,
-            transform=self.get_valid_transform(),
             data_dir=self.data_dir,
+            dataset_type="valid",
+            valid_split=valid_split,
+            loader=pil_loader,
+            transform=self.get_valid_transform(),
         )
 
     # TODO: for custom batch, define pin_memory()
@@ -238,7 +272,9 @@ def main():
     # ----------
     parser = ArgumentParser()
     parser.add_argument("--exp_name", default="Test")
-    parser.add_argument("--dataset_dir", metavar="DIR", help="path to dataset")
+    parser.add_argument(
+        "--dataset_dir", default="../dataset", metavar="DIR", help="path to dataset"
+    )
     parser.add_argument("--batch_size", default=32, type=int)
     parser.add_argument("--num_workers", default=2, type=int)
     parser = HelmetDetector.add_model_specific_args(parser)
