@@ -1,6 +1,8 @@
 from argparse import ArgumentParser
+import io
 import os
 import random
+from urllib.parse import urlparse
 
 import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
@@ -19,6 +21,7 @@ from effdet import create_model
 
 from PIL import Image
 from google.cloud import storage
+from google.api_core.retry import Retry
 
 
 def download_blob(bucket_name, source_blob_name, destination_file_name):
@@ -26,6 +29,16 @@ def download_blob(bucket_name, source_blob_name, destination_file_name):
     bucket = storage_client.bucket(bucket_name)
     blob = bucket.blob(source_blob_name)
     blob.download_to_filename(destination_file_name)
+
+
+@Retry()
+def gcs_pil_loader(uri):
+    uri = urlparse(uri)
+    storage_client = storage.Client()
+    bucket = storage_client.get_bucket(uri.netloc)
+    b = bucket.blob(uri.path[1:], chunk_size=None)
+    image = Image.open(io.BytesIO(b.download_as_string()))
+    return image.convert("RGB")
 
 
 def pil_loader(path):
@@ -94,7 +107,6 @@ class HelmetDataset(Dataset):
     def load_image_boxes(self, index):
         image_id = self.image_ids[index]
         image_path = os.path.join(self.data_dir, "images", image_id)
-
         image = self.loader(image_path)
         image = np.array(image, dtype=np.float32)
         image /= 255.0
@@ -120,18 +132,23 @@ class HelmetDataModule(pl.LightningDataModule):
     def setup(self, stage=None):
         valid_split = 0.1
 
+        if "gs://" in self.data_dir:
+            loader = gcs_pil_loader
+        else:
+            loader = pil_loader
+
         self.train_dataset = HelmetDataset(
             data_dir=self.data_dir,
             dataset_type="train",
             valid_split=valid_split,
-            loader=pil_loader,
+            loader=loader,
             transform=self.get_train_transform(),
         )
         self.valid_dataset = HelmetDataset(
             data_dir=self.data_dir,
             dataset_type="valid",
             valid_split=valid_split,
-            loader=pil_loader,
+            loader=loader,
             transform=self.get_valid_transform(),
         )
 
@@ -316,7 +333,6 @@ def main():
         save_top_k=3,
         mode="min",
     )
-    print(helmet_detector.hparams)
 
     # ----------
     # training
@@ -330,6 +346,7 @@ def main():
     # cli example
     # ----------
     # python train-helmet.py --exp_name=Test --dataset_dir=../dataset --batch_size=4 --num_workers=4 --max_epochs=1 --init_lr=1e-3 --weight_decay=1e-5 --limit_train_batches=10 --limit_val_batches=10
+    # python train-helmet.py --exp_name=Test --dataset_dir=gs://amiere-nfl-asia/dataset --batch_size=4 --num_workers=4 --max_epochs=1 --init_lr=1e-3 --weight_decay=1e-5 --limit_train_batches=10 --limit_val_batches=10
 
 
 if __name__ == "__main__":
