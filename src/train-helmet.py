@@ -18,6 +18,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.loggers import NeptuneLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
 from effdet import create_model
+from effdet.bench import DetBenchPredict
 
 from PIL import Image
 from google.cloud import storage
@@ -216,11 +217,12 @@ class HelmetDetector(pl.LightningModule):
     def __init__(self, args):
         super().__init__()
         self.model = self.get_model()
+        self.predictor = DetBenchPredict(self.model.model)
         self.init_lr = args.init_lr
         self.weight_decay = args.weight_decay
 
     def forward(self, x):
-        pass
+        return self.predictor.forward(x)
 
     def training_step(self, batch, batch_idx):
         image = batch["image"]
@@ -292,7 +294,7 @@ def main():
     parser.add_argument(
         "--dataset_dir", default="../dataset", metavar="DIR", help="path to dataset"
     )
-    parser.add_argument("--batch_size", default=32, type=int)
+    parser.add_argument("--batch_size", default=4, type=int)
     parser.add_argument("--num_workers", default=2, type=int)
     parser = HelmetDetector.add_model_specific_args(parser)
     parser = pl.Trainer.add_argparse_args(parser)
@@ -302,7 +304,7 @@ def main():
     # logger
     # ----------
     neptune_logger = NeptuneLogger(
-        api_key="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vdWkubmVwdHVuZS5haSIsImFwaV91cmwiOiJodHRwczovL3VpLm5lcHR1bmUuYWkiLCJhcGlfa2V5IjoiMzdiNWQ2YWItZmYwZi00NTMyLWI0MTAtNDc3MTYxMTg0ZWMzIn0=",
+        api_key=os.environ["NEPTUNE_API_TOKEN"],
         project_name="sunghyun.jun/sandbox",
         experiment_name=args.exp_name,
         params={
