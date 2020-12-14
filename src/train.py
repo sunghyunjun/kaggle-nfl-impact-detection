@@ -127,6 +127,10 @@ class ImpactDataset(Dataset):
             + self.train_labels.frame.astype(str)
             + ".png"
         )
+        # drop data with frame=0
+        self.train_labels.drop(
+            self.train_labels[self.train_labels.frame == 0].index, inplace=True
+        )
 
 
 class ImpactDataModule(pl.LightningDataModule):
@@ -197,6 +201,10 @@ class ImpactDataModule(pl.LightningDataModule):
             + "_"
             + self.train_labels.frame.astype(str)
             + ".png"
+        )
+        # drop data with frame=0
+        self.train_labels.drop(
+            self.train_labels[self.train_labels.frame == 0].index, inplace=True
         )
 
     def make_image_ids_fold(self, n_splits=10):
@@ -333,7 +341,7 @@ class ImpactDetector(pl.LightningModule):
             model_name="tf_efficientdet_d0",
             bench_task="train",
             num_classes=2,
-            pretrained=False,
+            pretrained=True,
             checkpoint_path="",
             checkpoint_ema=False,
             bench_labeler=True,
