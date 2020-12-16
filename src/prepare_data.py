@@ -7,7 +7,7 @@ import pandas as pd
 from tqdm import tqdm
 
 
-def make_images_from_single_video(video_name, video_dir, out_dir):
+def make_images_from_single_video(video_name, video_dir, out_dir, filetype="jpg"):
     video_path = os.path.join(video_dir, video_name)
     vidcap = cv2.VideoCapture(video_path)
 
@@ -21,18 +21,18 @@ def make_images_from_single_video(video_name, video_dir, out_dir):
         if not ret:
             break
         frame += 1
-        image_name = f"{video_name}_{frame}.png"
+        image_name = f"{video_name}_{frame}.{filetype}"
         image_path = os.path.join(out_dir, image_name)
         _ = cv2.imwrite(image_path, image)
 
 
-def make_images(video_dir, out_dir):
+def make_images(video_dir, out_dir, filetype="jpg"):
     filenames = os.listdir(video_dir)
     pbar = tqdm(filenames)
 
     for filename in pbar:
         pbar.set_description(f"Video: {filename:30}")
-        make_images_from_single_video(filename, video_dir, out_dir)
+        make_images_from_single_video(filename, video_dir, out_dir, filetype)
 
 
 def main():
