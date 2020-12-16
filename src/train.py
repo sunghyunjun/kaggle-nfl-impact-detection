@@ -125,7 +125,7 @@ class ImpactDataset(Dataset):
             self.train_labels.video.str.replace(".mp4", "")
             + "_"
             + self.train_labels.frame.astype(str)
-            + ".png"
+            + ".jpg"
         )
         # drop data with frame=0
         self.train_labels.drop(
@@ -200,7 +200,7 @@ class ImpactDataModule(pl.LightningDataModule):
             self.train_labels.video.str.replace(".mp4", "")
             + "_"
             + self.train_labels.frame.astype(str)
-            + ".png"
+            + ".jpg"
         )
         # drop data with frame=0
         self.train_labels.drop(
