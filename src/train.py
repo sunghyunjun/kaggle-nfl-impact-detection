@@ -1,6 +1,9 @@
 from argparse import ArgumentParser
 import io
 import os
+
+# import pickle
+import pickle5 as pickle
 import random
 from urllib.parse import urlparse
 
@@ -29,11 +32,25 @@ from google.cloud import storage
 from google.api_core.retry import Retry
 
 
+def load_obj(path):
+    with open(path, "rb") as f:
+        print(f"Load {path}")
+        return pickle.load(f)
+
+
 def download_blob(bucket_name, source_blob_name, destination_file_name):
     storage_client = storage.Client()
     bucket = storage_client.bucket(bucket_name)
     blob = bucket.blob(source_blob_name)
     blob.download_to_filename(destination_file_name)
+
+
+# def download_blob_byte(bucket_name, source_blob_name):
+#     storage_client = storage.Client()
+#     bucket = storage_client.bucket(bucket_name)
+#     blob = bucket.blob(source_blob_name)
+#     result = blob.download_as_bytes()
+#     return result
 
 
 @Retry()
@@ -133,6 +150,70 @@ class ImpactDataset(Dataset):
         )
 
 
+class ImpactDataset_V2(Dataset):
+    def __init__(
+        self, data_dir="../dataset", image_ids=None, loader=pil_loader, transform=None
+    ):
+        super().__init__()
+        self.data_dir = data_dir
+        self.loader = loader
+        self.transform = transform
+        self.filepath = os.path.join(self.data_dir, "train_labels.pkl")
+        self.load_train_pickle()
+        self.image_ids = image_ids
+        if self.image_ids is None:
+            self.image_ids = list(self.train_labels.keys())
+        self.length = len(self.image_ids)
+
+    def __getitem__(self, index: int):
+        image, bboxes, labels = self.load_image_boxes_labels(index)
+        sample = {"image": image, "bboxes": bboxes, "labels": labels}
+
+        if self.transform:
+            sample = self.transform(
+                image=sample["image"], bboxes=sample["bboxes"], labels=sample["labels"]
+            )
+
+            sample["bboxes"] = torch.Tensor(sample["bboxes"])
+            sample["labels"] = torch.IntTensor(sample["labels"])
+        else:
+            sample = A.Compose([ToTensorV2()])(
+                image=sample["image"], bboxes=sample["bboxes"], labels=sample["labels"]
+            )
+
+            sample["bboxes"] = torch.Tensor(sample["bboxes"])
+            sample["labels"] = torch.IntTensor(sample["labels"])
+
+        return sample
+
+    def __len__(self) -> int:
+        return self.length
+
+    def load_image_boxes_labels(self, index):
+        image_id = self.image_ids[index]
+        video_name = image_id[0 : image_id.rfind("_")]
+        image_path = os.path.join(
+            self.data_dir, "images-from-video", "train", video_name, image_id
+        )
+        image = self.loader(image_path)
+        image = np.array(image, dtype=np.float32)
+        image /= 255.0
+
+        records = self.train_labels[image_id]
+        # bboxes_xmin = records[:, 0]
+        # bboxes_ymin = records[:, 1]
+        # bboxes_xmax = records[:, 2]
+        # bboxes_ymax = records[:, 3]
+        # bboxes = np.array([bboxes_xmin, bboxes_ymin, bboxes_xmax, bboxes_ymax]).T
+        bboxes = records[:, :4]
+        labels = records[:, 4]
+
+        return image, bboxes, labels
+
+    def load_train_pickle(self):
+        self.train_labels = load_obj(self.filepath)
+
+
 class ImpactDataModule(pl.LightningDataModule):
     def __init__(self, data_dir: str = "../dataset", batch_size=32, num_workers=2):
         super().__init__()
@@ -152,13 +233,13 @@ class ImpactDataModule(pl.LightningDataModule):
             n_splits=10
         )
 
-        self.train_dataset = ImpactDataset(
+        self.train_dataset = ImpactDataset_V2(
             data_dir=self.data_dir,
             image_ids=self.train_image_ids,
             loader=loader,
             transform=self.get_train_transform(),
         )
-        self.valid_dataset = ImpactDataset(
+        self.valid_dataset = ImpactDataset_V2(
             data_dir=self.data_dir,
             image_ids=self.valid_image_ids,
             loader=loader,
