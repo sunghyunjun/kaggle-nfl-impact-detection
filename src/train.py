@@ -206,7 +206,9 @@ class ImpactDataset_V2(Dataset):
         # bboxes_ymax = records[:, 3]
         # bboxes = np.array([bboxes_xmin, bboxes_ymin, bboxes_xmax, bboxes_ymax]).T
         bboxes = records[:, :4]
-        labels = records[:, 4]
+
+        # TODO: Temporary fix. Set labels 0, 1 to 1, 2
+        labels = records[:, 4] + 1
 
         return image, bboxes, labels
 
@@ -368,12 +370,13 @@ class ImpactDataModule(pl.LightningDataModule):
 
 
 class ImpactDetector(pl.LightningModule):
-    def __init__(self, args):
+    def __init__(self, init_lr=1e-4, weight_decay=1e-5, **kwargs):
         super().__init__()
         self.model = self.get_model()
         self.predictor = DetBenchPredict(self.model.model)
-        self.init_lr = args.init_lr
-        self.weight_decay = args.weight_decay
+        self.init_lr = init_lr
+        self.weight_decay = weight_decay
+        self.save_hyperparameters()
 
     def forward(self, x):
         return self.predictor.forward(x)
@@ -432,7 +435,7 @@ class ImpactDetector(pl.LightningModule):
     @staticmethod
     def add_model_specific_args(parent_parser):
         parser = ArgumentParser(parents=[parent_parser], add_help=False)
-        parser.add_argument("--init_lr", type=float, default=1e-3)
+        parser.add_argument("--init_lr", type=float, default=1e-4)
         parser.add_argument("--weight_decay", type=float, default=1e-5)
         return parser
 
@@ -517,7 +520,8 @@ def main():
     # ----------
     # model
     # ----------
-    impact_detector = ImpactDetector(args)
+    dict_args = vars(args)
+    impact_detector = ImpactDetector(**dict_args)
     checkpoint_callback = ModelCheckpoint(
         monitor="val_loss",
         filename="impact-detector-{epoch:02d}-{val_loss:.2f}",
