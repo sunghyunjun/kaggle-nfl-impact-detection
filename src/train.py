@@ -162,12 +162,18 @@ class ImpactDataset(Dataset):
 
 class ImpactDataset_V2(Dataset):
     def __init__(
-        self, data_dir="../dataset", image_ids=None, loader=pil_loader, transform=None
+        self,
+        data_dir="../dataset",
+        image_ids=None,
+        loader=pil_loader,
+        transform=None,
+        bboxes_yxyx=True,
     ):
         super().__init__()
         self.data_dir = data_dir
         self.loader = loader
         self.transform = transform
+        self.bboxes_yxyx = bboxes_yxyx
         self.filepath = os.path.join(self.data_dir, "train_labels.pkl")
         self.load_train_pickle()
         self.image_ids = image_ids
@@ -192,10 +198,11 @@ class ImpactDataset_V2(Dataset):
             )
 
             sample["bboxes"] = torch.Tensor(sample["bboxes"])
-            # yxyx
-            sample["bboxes"][:, [0, 1, 2, 3]] = sample["bboxes"][:, [1, 0, 3, 2]]
-
             sample["labels"] = torch.IntTensor(sample["labels"])
+
+        if self.bboxes_yxyx:
+            # yxyx: for efficientdet training
+            sample["bboxes"][:, [0, 1, 2, 3]] = sample["bboxes"][:, [1, 0, 3, 2]]
 
         return sample
 
@@ -213,11 +220,7 @@ class ImpactDataset_V2(Dataset):
         image /= 255.0
 
         records = self.train_labels[image_id]
-        # bboxes_xmin = records[:, 0]
-        # bboxes_ymin = records[:, 1]
-        # bboxes_xmax = records[:, 2]
-        # bboxes_ymax = records[:, 3]
-        # bboxes = np.array([bboxes_xmin, bboxes_ymin, bboxes_xmax, bboxes_ymax]).T
+        # xyxy: xmin, ymin, xmax, ymax
         bboxes = records[:, :4]
 
         # TODO: Temporary fix. Set labels 0, 1 to 1, 2
@@ -464,10 +467,15 @@ class ImpactDetector(pl.LightningModule):
         return parser
 
 
-def visualize_single_sample(sample):
+def visualize_single_sample(sample, bboxes_yxyx=True):
     sample_image = np.transpose(sample["image"][0], (1, 2, 0))
     img = sample_image.numpy().copy()
     sample_boxes = sample["bboxes"][0].numpy().astype(np.int16)
+
+    if bboxes_yxyx:
+        # set bboxes xyxy for plot
+        sample_boxes[:, [0, 1, 2, 3]] = sample_boxes[:, [1, 0, 3, 2]]
+
     sample_labels = sample["labels"][0].numpy()
     for i in range(len(sample_boxes)):
         cv2.rectangle(
@@ -524,6 +532,7 @@ def main():
         project_name="sunghyun.jun/sandbox",
         experiment_name=args.exp_name,
         params={
+            "model_name": args.model_name,
             "batch_size": args.batch_size,
             "num_workers": args.num_workers,
             "init_lr": args.init_lr,
