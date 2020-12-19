@@ -32,6 +32,15 @@ from google.cloud import storage
 from google.api_core.retry import Retry
 
 
+def gcs_load_obj(uri):
+    uri = urlparse(uri)
+    storage_client = storage.Client()
+    bucket = storage_client.get_bucket(uri.netloc)
+    b = bucket.blob(uri.path[1:], chunk_size=None)
+    obj = pickle.load(io.BytesIO(b.download_as_string()))
+    return obj
+
+
 def load_obj(path):
     with open(path, "rb") as f:
         print(f"Load {path}")
@@ -213,7 +222,10 @@ class ImpactDataset_V2(Dataset):
         return image, bboxes, labels
 
     def load_train_pickle(self):
-        self.train_labels = load_obj(self.filepath)
+        if "gs://" in self.data_dir:
+            self.train_labels = gcs_load_obj(self.filepath)
+        else:
+            self.train_labels = load_obj(self.filepath)
 
 
 class ImpactDataModule(pl.LightningDataModule):
@@ -549,8 +561,8 @@ def main():
     # ----------
     # cli example
     # ----------
-    # python train.py --exp_name=Test --dataset_dir=../dataset --batch_size=4 --num_workers=2 --max_epochs=1 --init_lr=1e-3 --weight_decay=1e-5 --limit_train_batches=10 --limit_val_batches=10
-    # python train.py --exp_name=Test --dataset_dir=gs://amiere-nfl-asia/dataset --batch_size=4 --num_workers=2 --max_epochs=1 --init_lr=1e-3 --weight_decay=1e-5 --limit_train_batches=10 --limit_val_batches=10
+    # python train.py --exp_name=Test --dataset_dir=../dataset --batch_size=4 --num_workers=2 --max_epochs=1 --init_lr=1e-5 --weight_decay=1e-5 --limit_train_batches=10 --limit_val_batches=10
+    # python train.py --exp_name=Test --dataset_dir=gs://amiere-nfl-asia/dataset-jpg --batch_size=4 --num_workers=2 --max_epochs=1 --init_lr=1e-5 --weight_decay=1e-5 --limit_train_batches=10 --limit_val_batches=10
 
 
 if __name__ == "__main__":
