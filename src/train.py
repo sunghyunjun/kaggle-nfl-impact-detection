@@ -387,9 +387,12 @@ class ImpactDataModule(pl.LightningDataModule):
 
 
 class ImpactDetector(pl.LightningModule):
-    def __init__(self, init_lr=1e-4, weight_decay=1e-5, **kwargs):
+    def __init__(
+        self, model_name="tf_efficientdet_d1", init_lr=1e-4, weight_decay=1e-5, **kwargs
+    ):
         super().__init__()
-        self.model = self.get_model()
+        self.model_name = model_name
+        self.model = self.get_model(self.model_name)
         self.predictor = DetBenchPredict(self.model.model)
         self.init_lr = init_lr
         self.weight_decay = weight_decay
@@ -437,8 +440,8 @@ class ImpactDetector(pl.LightningModule):
         )
         return optimizer
 
-    def get_model(self):
-        model_name = "tf_efficientdet_d5"
+    def get_model(self, model_name="tf_efficientdet_d1"):
+        model_name = model_name
         config = get_efficientdet_config(model_name)
         config.image_size = (512, 512)
         config.norm_kwargs = dict(eps=0.001, momentum=0.01)
@@ -503,6 +506,7 @@ def main():
     # ----------
     parser = ArgumentParser()
     parser.add_argument("--exp_name", default="Test")
+    parser.add_argument("--model_name", default="tf_efficientdet_d1")
     parser.add_argument(
         "--dataset_dir", default="../dataset", metavar="DIR", help="path to dataset"
     )
