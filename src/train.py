@@ -24,7 +24,8 @@ from torch.utils.data import Dataset, DataLoader
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import NeptuneLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
-from effdet import create_model
+from effdet import create_model, create_model_from_config
+from effdet.config import get_efficientdet_config
 from effdet.bench import DetBenchPredict
 
 from PIL import Image
@@ -191,6 +192,9 @@ class ImpactDataset_V2(Dataset):
             )
 
             sample["bboxes"] = torch.Tensor(sample["bboxes"])
+            # yxyx
+            sample["bboxes"][:, [0, 1, 2, 3]] = sample["bboxes"][:, [1, 0, 3, 2]]
+
             sample["labels"] = torch.IntTensor(sample["labels"])
 
         return sample
@@ -355,6 +359,7 @@ class ImpactDataModule(pl.LightningDataModule):
     def get_train_transform(self):
         return A.Compose(
             [
+                A.HorizontalFlip(p=0.5),
                 A.Resize(height=512, width=512, p=1.0),
                 ToTensorV2(p=1.0),
             ],
@@ -433,8 +438,12 @@ class ImpactDetector(pl.LightningModule):
         return optimizer
 
     def get_model(self):
-        model = create_model(
-            model_name="tf_efficientdet_d0",
+        model_name = "tf_efficientdet_d5"
+        config = get_efficientdet_config(model_name)
+        config.image_size = (512, 512)
+        config.norm_kwargs = dict(eps=0.001, momentum=0.01)
+        model = create_model_from_config(
+            config=config,
             bench_task="train",
             num_classes=2,
             pretrained=True,
