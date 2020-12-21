@@ -5,6 +5,8 @@ from urllib.parse import urlparse
 import cv2
 import matplotlib.pyplot as plt
 
+import numpy as np
+
 from PIL import Image
 from google.cloud import storage
 from google.api_core.retry import Retry
@@ -57,15 +59,15 @@ def pil_loader(path):
 
 
 def visualize_single_sample(sample, bboxes_yxyx=True):
-    sample_image = np.transpose(sample["image"][0], (1, 2, 0))
+    sample_image = np.transpose(sample["image"], (1, 2, 0))
     img = sample_image.numpy().copy()
-    sample_boxes = sample["bboxes"][0].numpy().astype(np.int16)
+    sample_boxes = sample["bboxes"].numpy().astype(np.int16)
 
     if bboxes_yxyx:
         # set bboxes xyxy for plot
         sample_boxes[:, [0, 1, 2, 3]] = sample_boxes[:, [1, 0, 3, 2]]
 
-    sample_labels = sample["labels"][0].numpy()
+    sample_labels = sample["labels"].numpy()
     for i in range(len(sample_boxes)):
         cv2.rectangle(
             img,
@@ -84,7 +86,8 @@ def visualize_single_sample(sample, bboxes_yxyx=True):
             thickness=1,
         )
     plt.imshow(img)
-    plt.savefig("test_fig.png")
+    plt.show()
+    # plt.savefig("test_fig.png")
 
 
 def test_datamodule(dm):
