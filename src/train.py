@@ -447,7 +447,8 @@ class ImpactDetector(pl.LightningModule):
         model_name = model_name
         config = get_efficientdet_config(model_name)
         config.image_size = (512, 512)
-        config.norm_kwargs = dict(eps=0.001, momentum=0.01)
+        # config.anchor_scale = 1
+        # config.norm_kwargs = dict(eps=0.001, momentum=0.01)
         model = create_model_from_config(
             config=config,
             bench_task="train",
