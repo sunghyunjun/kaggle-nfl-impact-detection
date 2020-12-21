@@ -4,6 +4,7 @@ import random
 
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import NeptuneLogger
+from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.callbacks import ModelCheckpoint
 
 from datamodule import ImpactDataModule
@@ -71,12 +72,14 @@ def main():
             tags=["pytorch-lightning"],
         )
 
+        lr_monitor = LearningRateMonitor(logging_interval="step")
+
     # ----------
     # training
     # ----------
     if not args.debug:
         trainer = pl.Trainer.from_argparse_args(
-            args, logger=neptune_logger, callbacks=[checkpoint_callback]
+            args, logger=neptune_logger, callbacks=[checkpoint_callback, lr_monitor]
         )
     else:
         args.max_epochs = 1
