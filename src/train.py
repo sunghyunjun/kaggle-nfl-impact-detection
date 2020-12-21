@@ -59,7 +59,7 @@ def main():
     if not args.debug:
         neptune_logger = NeptuneLogger(
             api_key=os.environ["NEPTUNE_API_TOKEN"],
-            project_name="sunghyun.jun/sandbox",
+            project_name="sunghyun.jun/nfl-impact",
             experiment_name=args.exp_name,
             params={
                 "model_name": args.model_name,
