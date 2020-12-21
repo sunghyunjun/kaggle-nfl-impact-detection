@@ -1,6 +1,7 @@
 from argparse import ArgumentParser
 
 import torch
+from torch.optim.lr_scheduler import CosineAnnealingLR
 import pytorch_lightning as pl
 
 from effdet import create_model, create_model_from_config
@@ -10,7 +11,12 @@ from effdet.bench import DetBenchPredict
 
 class ImpactDetector(pl.LightningModule):
     def __init__(
-        self, model_name="tf_efficientdet_d0", init_lr=1e-4, weight_decay=1e-5, **kwargs
+        self,
+        model_name="tf_efficientdet_d0",
+        init_lr=1e-4,
+        weight_decay=1e-5,
+        max_epochs=10,
+        **kwargs,
     ):
         super().__init__()
         self.model_name = model_name
@@ -18,6 +24,7 @@ class ImpactDetector(pl.LightningModule):
         self.predictor = DetBenchPredict(self.model.model)
         self.init_lr = init_lr
         self.weight_decay = weight_decay
+        self.max_epochs = max_epochs
         self.save_hyperparameters()
 
     def forward(self, x):
@@ -53,14 +60,16 @@ class ImpactDetector(pl.LightningModule):
         self.log("val_loss", loss)
         self.log("val_cls_loss", class_loss)
         self.log("val_box_loss", box_loss)
-
         return loss
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(
             self.parameters(), lr=self.init_lr, weight_decay=self.weight_decay
         )
-        return optimizer
+
+        scheduler = CosineAnnealingLR(optimizer, T_max=self.max_epochs)
+        print(f"CosineAnnealingLR T_max epochs = {self.max_epochs}")
+        return [optimizer], [scheduler]
 
     def get_model(self, model_name="tf_efficientdet_d0"):
         model_name = model_name
