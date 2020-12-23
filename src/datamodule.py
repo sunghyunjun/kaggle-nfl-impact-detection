@@ -135,8 +135,14 @@ class ImpactDataModule(pl.LightningDataModule):
         image = torch.stack([sample["image"] for sample in samples])
         bboxes = [sample["bboxes"] for sample in samples]
         labels = [sample["labels"] for sample in samples]
+        image_id = [sample["image_id"] for sample in samples]
 
-        return {"image": image, "bboxes": bboxes, "labels": labels}
+        return {
+            "image": image,
+            "bboxes": bboxes,
+            "labels": labels,
+            "image_id": image_id,
+        }
 
     def get_train_transform(self):
         return A.Compose(
