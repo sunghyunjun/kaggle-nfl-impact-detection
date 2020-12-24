@@ -15,11 +15,18 @@ from utils import *
 
 
 class ImpactDataModule(pl.LightningDataModule):
-    def __init__(self, data_dir: str = "../dataset", batch_size=32, num_workers=2):
+    def __init__(
+        self,
+        data_dir: str = "../dataset",
+        batch_size=32,
+        num_workers=2,
+        oversample=False,
+    ):
         super().__init__()
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.oversample = oversample
         self.filepath = os.path.join(self.data_dir, "train_labels.csv")
         self.load_train_csv()
 
@@ -32,6 +39,12 @@ class ImpactDataModule(pl.LightningDataModule):
         self.train_image_ids, self.valid_image_ids = self.make_image_ids_fold(
             n_splits=10
         )
+
+        if self.oversample:
+            self.weight = self.make_sample_weight(self.train_image_ids)
+            self.sampler = torch.utils.data.WeightedRandomSampler(
+                self.weight, len(self.weight)
+            )
 
         self.train_dataset = ImpactDataset(
             data_dir=self.data_dir,
@@ -47,14 +60,25 @@ class ImpactDataModule(pl.LightningDataModule):
         )
 
     def train_dataloader(self):
-        train_loader = DataLoader(
-            self.train_dataset,
-            batch_size=self.batch_size,
-            shuffle=True,
-            num_workers=self.num_workers,
-            pin_memory=True,
-            collate_fn=self.make_batch,
-        )
+        if self.oversample:
+            train_loader = DataLoader(
+                self.train_dataset,
+                batch_size=self.batch_size,
+                # shuffle=True,
+                sampler=self.sampler,
+                num_workers=self.num_workers,
+                pin_memory=True,
+                collate_fn=self.make_batch,
+            )
+        else:
+            train_loader = DataLoader(
+                self.train_dataset,
+                batch_size=self.batch_size,
+                shuffle=True,
+                num_workers=self.num_workers,
+                pin_memory=True,
+                collate_fn=self.make_batch,
+            )
         return train_loader
 
     def val_dataloader(self):
@@ -143,6 +167,21 @@ class ImpactDataModule(pl.LightningDataModule):
             "labels": labels,
             "image_id": image_id,
         }
+
+    def make_sample_weight(self, image_ids):
+        # weight = [None] * len(image_ids)
+        weight = []
+        for index, image_id in enumerate(image_ids):
+            if (
+                1
+                in self.train_labels[
+                    self.train_labels.image == image_id
+                ].impact.to_numpy()
+            ):
+                weight.append(1)
+            else:
+                weight.append(0.1)
+        return weight
 
     def get_train_transform(self):
         return A.Compose(
