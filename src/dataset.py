@@ -42,7 +42,7 @@ class ImpactDataset(Dataset):
     def __getitem__(self, index: int):
         image, bboxes, labels = self.load_image_boxes_labels(index)
         image_id = self.image_ids[index]
-        sample = {
+        data = {
             "image": image,
             "bboxes": bboxes,
             "labels": labels,
@@ -51,20 +51,29 @@ class ImpactDataset(Dataset):
 
         if self.transform:
             sample = self.transform(
-                image=sample["image"],
-                bboxes=sample["bboxes"],
-                labels=sample["labels"],
-                image_id=sample["image_id"],
+                image=data["image"],
+                bboxes=data["bboxes"],
+                labels=data["labels"],
+                image_id=data["image_id"],
             )
+
+            while len(sample["bboxes"]) < 1:
+                # print("re-transform sample")
+                sample = self.transform(
+                    image=data["image"],
+                    bboxes=data["bboxes"],
+                    labels=data["labels"],
+                    image_id=data["image_id"],
+                )
 
             sample["bboxes"] = torch.Tensor(sample["bboxes"])
             sample["labels"] = torch.IntTensor(sample["labels"])
         else:
             sample = A.Compose([ToTensorV2()])(
-                image=sample["image"],
-                bboxes=sample["bboxes"],
-                labels=sample["labels"],
-                image_id=sample["image_id"],
+                image=data["image"],
+                bboxes=data["bboxes"],
+                labels=data["labels"],
+                image_id=data["image_id"],
             )
 
             sample["bboxes"] = torch.Tensor(sample["bboxes"])
