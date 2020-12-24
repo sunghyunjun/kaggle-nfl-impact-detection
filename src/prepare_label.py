@@ -19,7 +19,7 @@ def load_obj(name):
         return pickle.load(f)
 
 
-def make_pickle_from_labels(data_dir="../dataset", debug=False):
+def make_pickle_from_labels(data_dir="../dataset", debug=False, impact_only=False):
     train_labels = pd.read_csv("../dataset/train_labels.csv").fillna(0)
 
     train_labels["impact"] = train_labels["impact"].astype("int64")
@@ -32,6 +32,9 @@ def make_pickle_from_labels(data_dir="../dataset", debug=False):
         + ".jpg"
     )
     train_labels.drop(train_labels[train_labels.frame == 0].index, inplace=True)
+
+    if impact_only:
+        train_labels = train_labels[train_labels.impact == 1]
 
     image_ids = train_labels.image.unique()
 
@@ -58,17 +61,22 @@ def make_pickle_from_labels(data_dir="../dataset", debug=False):
         ].values
         data[image_id] = boxes_labels
 
-    filename = os.path.join(data_dir, "train_labels")
+    if impact_only:
+        filename = os.path.join(data_dir, "train_labels_impact_only")
+    else:
+        filename = os.path.join(data_dir, "train_labels")
     save_obj(data, filename)
 
 
 def main():
     parser = ArgumentParser()
     parser.add_argument("--dataset_dir", type=str, default="../dataset")
-    parser.add_argument("--debug", type=str, default=False)
+    # parser.add_argument("--debug", type=str, default=False)
+    parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--impactonly", action="store_true")
     args = parser.parse_args()
 
-    make_pickle_from_labels(args.dataset_dir, args.debug)
+    make_pickle_from_labels(args.dataset_dir, args.debug, args.impactonly)
 
 
 if __name__ == "__main__":
