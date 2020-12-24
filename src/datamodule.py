@@ -193,6 +193,9 @@ class ImpactDataModule(pl.LightningDataModule):
     def get_train_transform(self):
         return A.Compose(
             [
+                A.RandomSizedCrop(
+                    min_max_height=(700, 700), height=1024, width=1024, p=0.5
+                ),
                 A.OneOf(
                     [
                         A.HueSaturationValue(
@@ -207,10 +210,27 @@ class ImpactDataModule(pl.LightningDataModule):
                     ],
                     p=0.9,
                 ),
+                A.OneOf(
+                    [
+                        A.Blur(p=0.3),
+                        A.GaussNoise(p=0.3),
+                        A.IAASharpen(p=0.3),
+                    ],
+                    p=0.9,
+                ),
                 A.ToGray(p=0.1),
-                A.HorizontalFlip(p=0.5),
-                A.VerticalFlip(p=0.5),
+                A.OneOf(
+                    [
+                        A.Rotate(p=0.3),
+                        A.HorizontalFlip(p=0.3),
+                        A.VerticalFlip(p=0.3),
+                    ],
+                    p=0.9,
+                ),
                 A.Resize(height=512, width=512, p=1.0),
+                # A.Cutout(
+                #     num_holes=8, max_h_size=64, max_w_size=64, fill_value=0, p=0.5
+                # ),
                 ToTensorV2(p=1.0),
             ],
             bbox_params=A.BboxParams(
