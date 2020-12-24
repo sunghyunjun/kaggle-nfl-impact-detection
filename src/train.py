@@ -29,6 +29,7 @@ def main():
     parser.add_argument("--batch_size", default=4, type=int)
     parser.add_argument("--num_workers", default=2, type=int)
     parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--impactonly", action="store_true")
     parser = ImpactDetector.add_model_specific_args(parser)
     parser = pl.Trainer.add_argparse_args(parser)
     args = parser.parse_args()
@@ -40,6 +41,7 @@ def main():
         data_dir=args.dataset_dir,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
+        impactonly=args.impactonly,
     )
 
     # ----------

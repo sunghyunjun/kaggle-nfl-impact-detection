@@ -20,12 +20,14 @@ class ImpactDataModule(pl.LightningDataModule):
         data_dir: str = "../dataset",
         batch_size=32,
         num_workers=2,
+        impactonly=False,
         oversample=False,
     ):
         super().__init__()
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.impactonly = impactonly
         self.oversample = oversample
         self.filepath = os.path.join(self.data_dir, "train_labels.csv")
         self.load_train_csv()
@@ -50,12 +52,14 @@ class ImpactDataModule(pl.LightningDataModule):
             data_dir=self.data_dir,
             image_ids=self.train_image_ids,
             loader=loader,
+            impactonly=self.impactonly,
             transform=self.get_train_transform(),
         )
         self.valid_dataset = ImpactDataset(
             data_dir=self.data_dir,
             image_ids=self.valid_image_ids,
             loader=loader,
+            impactonly=self.impactonly,
             transform=self.get_valid_transform(),
         )
 
@@ -111,6 +115,9 @@ class ImpactDataModule(pl.LightningDataModule):
         self.train_labels.drop(
             self.train_labels[self.train_labels.frame == 0].index, inplace=True
         )
+
+        if self.impactonly:
+            self.train_labels = self.train_labels[self.train_labels.impact == 1]
 
     def make_image_ids_fold(self, n_splits=10):
         train_video_list, valid_video_list = self.make_video_fold(n_splits=n_splits)

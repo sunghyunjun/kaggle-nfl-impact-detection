@@ -17,15 +17,22 @@ class ImpactDataset(Dataset):
         data_dir="../dataset",
         image_ids=None,
         loader=pil_loader,
+        impactonly=False,
         transform=None,
         bboxes_yxyx=True,
     ):
         super().__init__()
         self.data_dir = data_dir
         self.loader = loader
+        self.impactonly = impactonly
         self.transform = transform
         self.bboxes_yxyx = bboxes_yxyx
-        self.filepath = os.path.join(self.data_dir, "train_labels.pkl")
+
+        if self.impactonly:
+            self.filepath = os.path.join(self.data_dir, "train_labels_impact_only.pkl")
+        else:
+            self.filepath = os.path.join(self.data_dir, "train_labels.pkl")
+
         self.load_train_pickle()
         self.image_ids = image_ids
         if self.image_ids is None:
