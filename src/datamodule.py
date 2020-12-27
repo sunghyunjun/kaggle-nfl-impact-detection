@@ -10,7 +10,7 @@ import pytorch_lightning as pl
 import torch
 from torch.utils.data import Dataset, DataLoader
 
-from dataset import ImpactDataset
+from dataset import ImpactDataset, ImpactSeqDataset
 from utils import *
 
 
@@ -22,6 +22,7 @@ class ImpactDataModule(pl.LightningDataModule):
         num_workers=2,
         impactonly=False,
         oversample=False,
+        seq_mode=False,
     ):
         super().__init__()
         self.data_dir = data_dir
@@ -29,6 +30,7 @@ class ImpactDataModule(pl.LightningDataModule):
         self.num_workers = num_workers
         self.impactonly = impactonly
         self.oversample = oversample
+        self.seq_mode = seq_mode
         self.filepath = os.path.join(self.data_dir, "train_labels.csv")
         self.load_train_csv()
 
@@ -48,20 +50,36 @@ class ImpactDataModule(pl.LightningDataModule):
                 self.weight, len(self.weight)
             )
 
-        self.train_dataset = ImpactDataset(
-            data_dir=self.data_dir,
-            image_ids=self.train_image_ids,
-            loader=loader,
-            impactonly=self.impactonly,
-            transform=self.get_train_transform(),
-        )
-        self.valid_dataset = ImpactDataset(
-            data_dir=self.data_dir,
-            image_ids=self.valid_image_ids,
-            loader=loader,
-            impactonly=self.impactonly,
-            transform=self.get_valid_transform(),
-        )
+        if self.seq_mode:
+            self.train_dataset = ImpactSeqDataset(
+                data_dir=self.data_dir,
+                image_ids=self.train_image_ids,
+                loader=loader,
+                impactonly=self.impactonly,
+                transform=self.get_train_transform(),
+            )
+            self.valid_dataset = ImpactSeqDataset(
+                data_dir=self.data_dir,
+                image_ids=self.valid_image_ids,
+                loader=loader,
+                impactonly=self.impactonly,
+                transform=self.get_valid_transform(),
+            )
+        else:
+            self.train_dataset = ImpactDataset(
+                data_dir=self.data_dir,
+                image_ids=self.train_image_ids,
+                loader=loader,
+                impactonly=self.impactonly,
+                transform=self.get_train_transform(),
+            )
+            self.valid_dataset = ImpactDataset(
+                data_dir=self.data_dir,
+                image_ids=self.valid_image_ids,
+                loader=loader,
+                impactonly=self.impactonly,
+                transform=self.get_valid_transform(),
+            )
 
     def train_dataloader(self):
         if self.oversample:
@@ -187,28 +205,17 @@ class ImpactDataModule(pl.LightningDataModule):
             ):
                 weight.append(1)
             else:
-                weight.append(0.1)
+                weight.append(0.05)
         return weight
 
     def get_train_transform(self):
         return A.Compose(
             [
-                A.RandomSizedCrop(
-                    min_max_height=(700, 700), height=1024, width=1024, p=0.5
-                ),
-                A.OneOf(
-                    [
-                        A.HueSaturationValue(
-                            hue_shift_limit=0.2,
-                            sat_shift_limit=0.2,
-                            val_shift_limit=0.2,
-                            p=0.9,
-                        ),
-                        A.RandomBrightnessContrast(
-                            brightness_limit=0.2, contrast_limit=0.2, p=0.9
-                        ),
-                    ],
-                    p=0.9,
+                # A.RandomSizedCrop(
+                #     min_max_height=(700, 700), height=1024, width=1024, p=0.5
+                # ),
+                A.RandomBrightnessContrast(
+                    brightness_limit=0.2, contrast_limit=0.2, p=0.9
                 ),
                 A.OneOf(
                     [
@@ -218,19 +225,14 @@ class ImpactDataModule(pl.LightningDataModule):
                     ],
                     p=0.9,
                 ),
-                A.ToGray(p=0.1),
                 A.OneOf(
                     [
-                        A.Rotate(p=0.3),
-                        A.HorizontalFlip(p=0.3),
-                        A.VerticalFlip(p=0.3),
+                        A.HorizontalFlip(p=0.5),
+                        A.VerticalFlip(p=0.5),
                     ],
-                    p=0.9,
+                    p=0.5,
                 ),
                 A.Resize(height=512, width=512, p=1.0),
-                # A.Cutout(
-                #     num_holes=8, max_h_size=64, max_w_size=64, fill_value=0, p=0.5
-                # ),
                 ToTensorV2(p=1.0),
             ],
             bbox_params=A.BboxParams(
