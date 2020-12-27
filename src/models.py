@@ -2,6 +2,8 @@ from argparse import ArgumentParser
 
 import torch
 from torch.optim.lr_scheduler import CosineAnnealingLR
+
+import timm
 import pytorch_lightning as pl
 
 from effdet import create_model, create_model_from_config
@@ -16,11 +18,13 @@ class ImpactDetector(pl.LightningModule):
         init_lr=1e-4,
         weight_decay=1e-5,
         max_epochs=10,
+        seq_mode=False,
         **kwargs,
     ):
         super().__init__()
         self.model_name = model_name
-        self.model = self.get_model(self.model_name)
+        self.seq_mode = seq_mode
+        self.model = self.get_model(self.model_name, self.seq_mode)
         self.predictor = DetBenchPredict(self.model.model)
         self.init_lr = init_lr
         self.weight_decay = weight_decay
@@ -71,7 +75,7 @@ class ImpactDetector(pl.LightningModule):
         print(f"CosineAnnealingLR T_max epochs = {self.max_epochs}")
         return [optimizer], [scheduler]
 
-    def get_model(self, model_name="tf_efficientdet_d0"):
+    def get_model(self, model_name="tf_efficientdet_d0", seq_mode=False):
         model_name = model_name
         config = get_efficientdet_config(model_name)
         config.image_size = (512, 512)
@@ -86,6 +90,12 @@ class ImpactDetector(pl.LightningModule):
             checkpoint_ema=False,
             bench_labeler=True,
         )
+
+        if seq_mode == True:
+            model.model.backbone.conv_stem = timm.models.layers.Conv2dSame(
+                9, 32, kernel_size=(3, 3), stride=(2, 2), bias=False
+            )
+
         return model
 
     @staticmethod
