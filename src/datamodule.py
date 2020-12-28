@@ -23,6 +23,7 @@ class ImpactDataModule(pl.LightningDataModule):
         impactonly=False,
         oversample=False,
         seqmode=False,
+        fullsizeimage=False,
     ):
         super().__init__()
         self.data_dir = data_dir
@@ -31,6 +32,7 @@ class ImpactDataModule(pl.LightningDataModule):
         self.impactonly = impactonly
         self.oversample = oversample
         self.seqmode = seqmode
+        self.fullsizeimage = fullsizeimage
         self.filepath = os.path.join(self.data_dir, "train_labels.csv")
         self.load_train_csv()
 
@@ -73,6 +75,7 @@ class ImpactDataModule(pl.LightningDataModule):
                 loader=loader,
                 impactonly=self.impactonly,
                 transform=self.get_valid_transform(),
+                bboxes_yxyx=False,
             )
 
         if self.oversample:
@@ -216,6 +219,13 @@ class ImpactDataModule(pl.LightningDataModule):
         return weight
 
     def get_train_transform(self):
+        if self.fullsizeimage:
+            resize_height = 1280
+            resize_width = 1280
+        else:
+            resize_height = 512
+            resize_width = 512
+
         return A.Compose(
             [
                 # A.RandomSizedCrop(
@@ -239,7 +249,7 @@ class ImpactDataModule(pl.LightningDataModule):
                     ],
                     p=0.5,
                 ),
-                A.Resize(height=512, width=512, p=1.0),
+                A.Resize(height=resize_height, width=resize_width, p=1.0),
                 ToTensorV2(p=1.0),
             ],
             bbox_params=A.BboxParams(
@@ -251,9 +261,16 @@ class ImpactDataModule(pl.LightningDataModule):
         )
 
     def get_valid_transform(self):
+        if self.fullsizeimage:
+            resize_height = 1280
+            resize_width = 1280
+        else:
+            resize_height = 512
+            resize_width = 512
+
         return A.Compose(
             [
-                A.Resize(height=512, width=512, p=1.0),
+                A.Resize(height=resize_height, width=resize_width, p=1.0),
                 ToTensorV2(p=1.0),
             ],
             bbox_params=A.BboxParams(
