@@ -19,17 +19,17 @@ class ImpactDetector(pl.LightningModule):
         weight_decay=1e-5,
         max_epochs=10,
         impactonly=False,
-        seq_mode=False,
+        seqmode=False,
         **kwargs,
     ):
         super().__init__()
         self.model_name = model_name
         self.impactonly = impactonly
-        self.seq_mode = seq_mode
+        self.seqmode = seqmode
         self.model = self.get_model(
             model_name=self.model_name,
             impactonly=self.impactonly,
-            seq_mode=self.seq_mode,
+            seqmode=self.seqmode,
         )
         self.predictor = DetBenchPredict(self.model.model)
         self.init_lr = init_lr
@@ -82,7 +82,7 @@ class ImpactDetector(pl.LightningModule):
         return [optimizer], [scheduler]
 
     def get_model(
-        self, model_name="tf_efficientdet_d0", impactonly=False, seq_mode=False
+        self, model_name="tf_efficientdet_d0", impactonly=False, seqmode=False
     ):
         model_name = model_name
         config = get_efficientdet_config(model_name)
@@ -105,7 +105,7 @@ class ImpactDetector(pl.LightningModule):
             bench_labeler=True,
         )
 
-        if seq_mode == True:
+        if seqmode == True:
             model.model.backbone.conv_stem = timm.models.layers.Conv2dSame(
                 9, 32, kernel_size=(3, 3), stride=(2, 2), bias=False
             )
