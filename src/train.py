@@ -31,7 +31,7 @@ def main():
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--impactonly", action="store_true")
     parser.add_argument("--oversample", action="store_true")
-    parser.add_argument("--seq_mode", action="store_true")
+    parser.add_argument("--seqmode", action="store_true")
     parser = ImpactDetector.add_model_specific_args(parser)
     parser = pl.Trainer.add_argparse_args(parser)
     args = parser.parse_args()
@@ -45,7 +45,7 @@ def main():
         num_workers=args.num_workers,
         impactonly=args.impactonly,
         oversample=args.oversample,
-        seq_mode=args.seq_mode,
+        seqmode=args.seqmode,
     )
 
     # ----------

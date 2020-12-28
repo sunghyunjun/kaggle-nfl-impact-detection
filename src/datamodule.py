@@ -22,7 +22,7 @@ class ImpactDataModule(pl.LightningDataModule):
         num_workers=2,
         impactonly=False,
         oversample=False,
-        seq_mode=False,
+        seqmode=False,
     ):
         super().__init__()
         self.data_dir = data_dir
@@ -30,7 +30,7 @@ class ImpactDataModule(pl.LightningDataModule):
         self.num_workers = num_workers
         self.impactonly = impactonly
         self.oversample = oversample
-        self.seq_mode = seq_mode
+        self.seqmode = seqmode
         self.filepath = os.path.join(self.data_dir, "train_labels.csv")
         self.load_train_csv()
 
@@ -44,7 +44,7 @@ class ImpactDataModule(pl.LightningDataModule):
             n_splits=10
         )
 
-        if self.seq_mode:
+        if self.seqmode:
             self.train_dataset = ImpactSeqDataset(
                 data_dir=self.data_dir,
                 image_ids=self.train_image_ids,
