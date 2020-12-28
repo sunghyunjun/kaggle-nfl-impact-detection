@@ -20,16 +20,19 @@ class ImpactDetector(pl.LightningModule):
         max_epochs=10,
         impactonly=False,
         seqmode=False,
+        fullsizeimage=False,
         **kwargs,
     ):
         super().__init__()
         self.model_name = model_name
         self.impactonly = impactonly
         self.seqmode = seqmode
+        self.fullsizeimage = fullsizeimage
         self.model = self.get_model(
             model_name=self.model_name,
             impactonly=self.impactonly,
             seqmode=self.seqmode,
+            fullsizeimage=self.fullsizeimage,
         )
         self.predictor = DetBenchPredict(self.model.model)
         self.init_lr = init_lr
@@ -82,11 +85,20 @@ class ImpactDetector(pl.LightningModule):
         return [optimizer], [scheduler]
 
     def get_model(
-        self, model_name="tf_efficientdet_d0", impactonly=False, seqmode=False
+        self,
+        model_name="tf_efficientdet_d0",
+        impactonly=False,
+        seqmode=False,
+        fullsizeimage=False,
     ):
         model_name = model_name
         config = get_efficientdet_config(model_name)
-        config.image_size = (512, 512)
+
+        if fullsizeimage:
+            # config.image_size = (1280, 640) # size % 128 = 0 on each dim
+            config.image_size = (1280, 1280)
+        else:
+            config.image_size = (512, 512)
         # config.anchor_scale = 1
         # config.norm_kwargs = dict(eps=0.001, momentum=0.01)
 
