@@ -18,13 +18,19 @@ class ImpactDetector(pl.LightningModule):
         init_lr=1e-4,
         weight_decay=1e-5,
         max_epochs=10,
+        impactonly=False,
         seq_mode=False,
         **kwargs,
     ):
         super().__init__()
         self.model_name = model_name
+        self.impactonly = impactonly
         self.seq_mode = seq_mode
-        self.model = self.get_model(self.model_name, self.seq_mode)
+        self.model = self.get_model(
+            model_name=self.model_name,
+            impactonly=self.impactonly,
+            seq_mode=self.seq_mode,
+        )
         self.predictor = DetBenchPredict(self.model.model)
         self.init_lr = init_lr
         self.weight_decay = weight_decay
@@ -75,16 +81,24 @@ class ImpactDetector(pl.LightningModule):
         print(f"CosineAnnealingLR T_max epochs = {self.max_epochs}")
         return [optimizer], [scheduler]
 
-    def get_model(self, model_name="tf_efficientdet_d0", seq_mode=False):
+    def get_model(
+        self, model_name="tf_efficientdet_d0", impactonly=False, seq_mode=False
+    ):
         model_name = model_name
         config = get_efficientdet_config(model_name)
         config.image_size = (512, 512)
         # config.anchor_scale = 1
         # config.norm_kwargs = dict(eps=0.001, momentum=0.01)
+
+        if impactonly:
+            num_classes = 1
+        else:
+            num_classes = 2
+
         model = create_model_from_config(
             config=config,
             bench_task="train",
-            num_classes=2,
+            num_classes=num_classes,
             pretrained=True,
             checkpoint_path="",
             checkpoint_ema=False,
