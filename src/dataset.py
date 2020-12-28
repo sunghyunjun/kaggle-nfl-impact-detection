@@ -103,7 +103,10 @@ class ImpactDataset(Dataset):
         bboxes = records[:, :4]
 
         # TODO: Temporary fix. Set labels 0, 1 to 1, 2
-        labels = records[:, 4] + 1
+        if self.impactonly:
+            labels = records[:, 4]
+        else:
+            labels = records[:, 4] + 1
 
         return image, bboxes, labels
 
