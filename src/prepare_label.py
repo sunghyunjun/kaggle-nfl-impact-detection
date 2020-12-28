@@ -33,6 +33,9 @@ def make_pickle_from_labels(data_dir="../dataset", debug=False, impact_only=Fals
     )
     train_labels.drop(train_labels[train_labels.frame == 0].index, inplace=True)
 
+    train_labels["weight_0.1"] = np.where(train_labels["impact"] == 1, 1, 0.1)
+    train_labels["weight_0.05"] = np.where(train_labels["impact"] == 1, 1, 0.05)
+
     if impact_only:
         train_labels = train_labels[train_labels.impact == 1]
 
@@ -57,7 +60,17 @@ def make_pickle_from_labels(data_dir="../dataset", debug=False, impact_only=Fals
 
         # exclude impactType. it has object dtype.
         boxes_labels = records[
-            ["xmin", "ymin", "xmax", "ymax", "impact", "confidence", "visibility"]
+            [
+                "xmin",
+                "ymin",
+                "xmax",
+                "ymax",
+                "impact",
+                "confidence",
+                "visibility",
+                "weight_0.1",
+                "weight_0.05",
+            ]
         ].values
         data[image_id] = boxes_labels
 
