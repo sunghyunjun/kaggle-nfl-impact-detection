@@ -75,7 +75,6 @@ class ImpactDataModule(pl.LightningDataModule):
                 loader=loader,
                 impactonly=self.impactonly,
                 transform=self.get_valid_transform(),
-                bboxes_yxyx=False,
             )
 
         if self.oversample:
