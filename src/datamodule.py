@@ -44,12 +44,6 @@ class ImpactDataModule(pl.LightningDataModule):
             n_splits=10
         )
 
-        if self.oversample:
-            self.weight = self.make_sample_weight(self.train_image_ids)
-            self.sampler = torch.utils.data.WeightedRandomSampler(
-                self.weight, len(self.weight)
-            )
-
         if self.seq_mode:
             self.train_dataset = ImpactSeqDataset(
                 data_dir=self.data_dir,
@@ -79,6 +73,12 @@ class ImpactDataModule(pl.LightningDataModule):
                 loader=loader,
                 impactonly=self.impactonly,
                 transform=self.get_valid_transform(),
+            )
+
+        if self.oversample:
+            self.weight = self.make_sample_weight(self.train_image_ids)
+            self.sampler = torch.utils.data.WeightedRandomSampler(
+                self.weight, len(self.weight)
             )
 
     def train_dataloader(self):
@@ -195,17 +195,24 @@ class ImpactDataModule(pl.LightningDataModule):
 
     def make_sample_weight(self, image_ids):
         # weight = [None] * len(image_ids)
+        # self.weight = self.train_dataset.train_labels["weight_0.05"]
         weight = []
+        # for index, image_id in enumerate(image_ids):
+        #     if (
+        #         1
+        #         in self.train_labels[
+        #             self.train_labels.image == image_id
+        #         ].impact.to_numpy()
+        #     ):
+        #         weight.append(1)
+        #     else:
+        #         weight.append(0.05)
         for index, image_id in enumerate(image_ids):
-            if (
-                1
-                in self.train_labels[
-                    self.train_labels.image == image_id
-                ].impact.to_numpy()
-            ):
-                weight.append(1)
-            else:
-                weight.append(0.05)
+            # weight_0.1
+            # weight.append(self.train_dataset.train_labels[image_id][:, 7].max())
+
+            # weight_0.05
+            weight.append(self.train_dataset.train_labels[image_id][:, 8].max())
         return weight
 
     def get_train_transform(self):
@@ -217,14 +224,14 @@ class ImpactDataModule(pl.LightningDataModule):
                 A.RandomBrightnessContrast(
                     brightness_limit=0.2, contrast_limit=0.2, p=0.9
                 ),
-                A.OneOf(
-                    [
-                        A.Blur(p=0.3),
-                        A.GaussNoise(p=0.3),
-                        A.IAASharpen(p=0.3),
-                    ],
-                    p=0.9,
-                ),
+                # A.OneOf(
+                #     [
+                #         A.Blur(p=0.3),
+                #         A.GaussNoise(p=0.3),
+                #         A.IAASharpen(p=0.3),
+                #     ],
+                #     p=0.9,
+                # ),
                 A.OneOf(
                     [
                         A.HorizontalFlip(p=0.5),
