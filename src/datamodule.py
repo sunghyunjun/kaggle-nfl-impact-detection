@@ -196,24 +196,8 @@ class ImpactDataModule(pl.LightningDataModule):
         }
 
     def make_sample_weight(self, image_ids):
-        # weight = [None] * len(image_ids)
-        # self.weight = self.train_dataset.train_labels["weight_0.05"]
         weight = []
-        # for index, image_id in enumerate(image_ids):
-        #     if (
-        #         1
-        #         in self.train_labels[
-        #             self.train_labels.image == image_id
-        #         ].impact.to_numpy()
-        #     ):
-        #         weight.append(1)
-        #     else:
-        #         weight.append(0.05)
         for index, image_id in enumerate(image_ids):
-            # weight_0.1
-            # weight.append(self.train_dataset.train_labels[image_id][:, 7].max())
-
-            # weight_0.05
             weight.append(self.train_dataset.train_labels[image_id][:, 8].max())
         return weight
 
