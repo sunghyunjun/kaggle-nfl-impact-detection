@@ -204,29 +204,35 @@ class ImpactDataModule(pl.LightningDataModule):
     def get_train_transform(self):
         if self.fullsizeimage:
             resize_height = 1280
-            resize_width = 1280
+            resize_width = 640
         else:
             resize_height = 512
             resize_width = 512
 
         return A.Compose(
             [
-                # A.RandomSizedCrop(
-                #     min_max_height=(700, 700), height=1024, width=1024, p=0.5
-                # ),
-                A.RandomBrightnessContrast(
-                    brightness_limit=0.2, contrast_limit=0.2, p=0.9
-                ),
-                # A.OneOf(
-                #     [
-                #         A.Blur(p=0.3),
-                #         A.GaussNoise(p=0.3),
-                #         A.IAASharpen(p=0.3),
-                #     ],
-                #     p=0.9,
-                # ),
                 A.OneOf(
                     [
+                        A.RandomBrightnessContrast(p=0.5),
+                        A.RGBShift(p=0.5),
+                        A.HueSaturationValue(p=0.5),
+                        A.ToGray(p=0.5),
+                        A.ChannelDropout(p=0.5),
+                        A.ChannelShuffle(p=0.5),
+                    ],
+                    p=0.5,
+                ),
+                A.OneOf(
+                    [
+                        A.Blur(p=0.5),
+                        A.GaussNoise(p=0.5),
+                        A.IAASharpen(p=0.5),
+                    ],
+                    p=0.5,
+                ),
+                A.OneOf(
+                    [
+                        A.Rotate(limit=20, p=0.5),
                         A.HorizontalFlip(p=0.5),
                         A.VerticalFlip(p=0.5),
                     ],
@@ -246,7 +252,7 @@ class ImpactDataModule(pl.LightningDataModule):
     def get_valid_transform(self):
         if self.fullsizeimage:
             resize_height = 1280
-            resize_width = 1280
+            resize_width = 640
         else:
             resize_height = 512
             resize_width = 512
