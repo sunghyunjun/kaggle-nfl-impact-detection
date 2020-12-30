@@ -95,7 +95,8 @@ class ImpactDetector(pl.LightningModule):
         config = get_efficientdet_config(model_name)
 
         if fullsizeimage:
-            config.image_size = (1280, 640)  # size % 128 = 0 on each dim
+            # (H, W) size % 128 = 0 on each dim
+            config.image_size = (640, 1280)
             # config.image_size = (1280, 1280)
         else:
             config.image_size = (512, 512)

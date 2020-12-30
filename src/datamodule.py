@@ -203,8 +203,8 @@ class ImpactDataModule(pl.LightningDataModule):
 
     def get_train_transform(self):
         if self.fullsizeimage:
-            resize_height = 1280
-            resize_width = 640
+            resize_height = 640
+            resize_width = 1280
         else:
             resize_height = 512
             resize_width = 512
@@ -251,8 +251,8 @@ class ImpactDataModule(pl.LightningDataModule):
 
     def get_valid_transform(self):
         if self.fullsizeimage:
-            resize_height = 1280
-            resize_width = 640
+            resize_height = 640
+            resize_width = 1280
         else:
             resize_height = 512
             resize_width = 512
