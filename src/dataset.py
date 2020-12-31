@@ -31,7 +31,7 @@ class ImpactDataset(Dataset):
         self.bboxes_yxyx = bboxes_yxyx
 
         filename = "train_labels"
-        if self.impact_only:
+        if self.impactonly:
             filename += "_impact_only"
 
         if self.overlap is not None:
