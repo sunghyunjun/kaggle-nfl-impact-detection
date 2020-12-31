@@ -10,8 +10,17 @@ import pytorch_lightning as pl
 import torch
 from torch.utils.data import Dataset, DataLoader
 
+from tqdm import tqdm
+
 from dataset import ImpactDataset, ImpactSeqDataset
 from utils import *
+
+
+def make_overlap_array(overlap):
+    overlap_array_after = np.array(range(overlap)) + 1
+    overlap_array_before = overlap_array_after[::-1] * -1
+    overlap_array = np.concatenate([overlap_array_before, overlap_array_after], axis=0)
+    return overlap_array
 
 
 class ImpactDataModule(pl.LightningDataModule):
@@ -142,6 +151,22 @@ class ImpactDataModule(pl.LightningDataModule):
         self.train_labels.drop(
             self.train_labels[self.train_labels.frame == 0].index, inplace=True
         )
+
+        if self.overlap is not None:
+            overlap_array = make_overlap_array(self.overlap)
+            train_labels_with_impact = self.train_labels[
+                self.train_labels["impact"] > 0
+            ]
+            pbar = tqdm(train_labels_with_impact[["video", "frame", "label"]].values)
+            for row in pbar:
+                pbar.set_description("Processing overlap array")
+                frames = overlap_array + row[1]
+                self.train_labels.loc[
+                    (self.train_labels["video"] == row[0])
+                    & (self.train_labels["frame"].isin(frames))
+                    & (self.train_labels["label"] == row[2]),
+                    "impact",
+                ] = 1
 
         if self.impactonly:
             self.train_labels = self.train_labels[self.train_labels.impact == 1]
