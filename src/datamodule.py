@@ -24,6 +24,7 @@ class ImpactDataModule(pl.LightningDataModule):
         oversample=False,
         seqmode=False,
         fullsizeimage=False,
+        foldcombinedview=True,
     ):
         super().__init__()
         self.data_dir = data_dir
@@ -33,6 +34,7 @@ class ImpactDataModule(pl.LightningDataModule):
         self.oversample = oversample
         self.seqmode = seqmode
         self.fullsizeimage = fullsizeimage
+        self.foldcombinedview = foldcombinedview
         self.filepath = os.path.join(self.data_dir, "train_labels.csv")
         self.load_train_csv()
 
@@ -43,7 +45,8 @@ class ImpactDataModule(pl.LightningDataModule):
             loader = pil_loader
 
         self.train_image_ids, self.valid_image_ids = self.make_image_ids_fold(
-            n_splits=10
+            n_splits=10,
+            foldcombinedview=self.foldcombinedview,
         )
 
         if self.seqmode:
@@ -139,8 +142,14 @@ class ImpactDataModule(pl.LightningDataModule):
         if self.impactonly:
             self.train_labels = self.train_labels[self.train_labels.impact == 1]
 
-    def make_image_ids_fold(self, n_splits=10):
-        train_video_list, valid_video_list = self.make_video_fold(n_splits=n_splits)
+    def make_image_ids_fold(self, n_splits=10, foldcombinedview=True):
+        if foldcombinedview:
+            train_video_list, valid_video_list = self.make_video_fold_combined_view(
+                n_splits=n_splits
+            )
+        else:
+            train_video_list, valid_video_list = self.make_video_fold(n_splits=n_splits)
+
         train_image = self.train_labels[
             self.train_labels.video.isin(train_video_list)
         ].image
@@ -180,6 +189,62 @@ class ImpactDataModule(pl.LightningDataModule):
 
         train_video_list = df_video.iloc[train_fold[0], :].video.tolist()
         valid_video_list = df_video.iloc[valid_fold[0], :].video.tolist()
+
+        self.debug_video_list = [train_video_list, valid_video_list]
+
+        return train_video_list, valid_video_list
+
+    def make_video_fold_combined_view(self, n_splits=10):
+        def get_class(x):
+            if x >= 22:
+                y = 3
+            elif x >= 19:
+                y = 2
+            elif x >= 16:
+                y = 1
+            else:
+                y = 0
+            return y
+
+        df_video_endzone = (
+            self.train_labels[self.train_labels.view == "Endzone"]
+            .groupby(["video"], as_index=False)
+            .impact.sum()
+            .rename(columns={"impact": "impact_sum"})
+        )
+        df_video_endzone["impact_sum_class"] = df_video_endzone.impact_sum.apply(
+            get_class
+        )
+        skf = StratifiedKFold(n_splits=n_splits)
+        train_fold = []
+        valid_fold = []
+        for train_index, valid_index in skf.split(
+            df_video_endzone.video, df_video_endzone.impact_sum_class
+        ):
+            train_fold.append(train_index)
+            valid_fold.append(valid_index)
+
+        train_video_endzone_list = df_video_endzone.iloc[
+            train_fold[0], :
+        ].video.tolist()
+        valid_video_endzone_list = df_video_endzone.iloc[
+            valid_fold[0], :
+        ].video.tolist()
+
+        train_video_sideline_list = [
+            video_name.replace("Endzone", "Sideline")
+            for video_name in train_video_endzone_list
+        ]
+        valid_video_sideline_list = [
+            video_name.replace("Endzone", "Sideline")
+            for video_name in valid_video_endzone_list
+        ]
+
+        train_video_list = train_video_endzone_list + train_video_sideline_list
+        valid_video_list = valid_video_endzone_list + valid_video_sideline_list
+
+        self.debug_video_list = [train_video_list, valid_video_list]
+
         return train_video_list, valid_video_list
 
     def make_batch(self, samples):
