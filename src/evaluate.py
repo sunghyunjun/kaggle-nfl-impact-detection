@@ -407,8 +407,8 @@ def main():
         image_ids, boxes_pred, scores_pred, labels_pred, IMPACT_CLASS
     )
 
-    SCORE_THRESHOLD = [0.30, 0.35, 0.40]
-    IOU_THRESHOLD = [0.4, 0.5, 0.6]
+    SCORE_THRESHOLD = [0.30, 0.35, 0.40, 0.45, 0.50]
+    IOU_THRESHOLD = [0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 
     for thres in SCORE_THRESHOLD:
         pred_df = pred_df_raw[pred_df_raw.score > thres]
