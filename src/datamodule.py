@@ -30,6 +30,7 @@ class ImpactDataModule(pl.LightningDataModule):
         batch_size=32,
         num_workers=2,
         impactonly=False,
+        impactdefinitive=False,
         overlap=None,
         oversample=False,
         seqmode=False,
@@ -41,6 +42,7 @@ class ImpactDataModule(pl.LightningDataModule):
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.impactonly = impactonly
+        self.impactdefinitive = impactdefinitive
         self.overlap = overlap
         self.oversample = oversample
         self.seqmode = seqmode
@@ -66,6 +68,8 @@ class ImpactDataModule(pl.LightningDataModule):
                 image_ids=self.train_image_ids,
                 loader=loader,
                 impactonly=self.impactonly,
+                impactdefinitive=self.impactdefinitive,
+                overlap=self.overlap,
                 transform=self.get_train_transform(),
             )
             self.valid_dataset = ImpactSeqDataset(
@@ -73,6 +77,8 @@ class ImpactDataModule(pl.LightningDataModule):
                 image_ids=self.valid_image_ids,
                 loader=loader,
                 impactonly=self.impactonly,
+                impactdefinitive=self.impactdefinitive,
+                overlap=self.overlap,
                 transform=self.get_valid_transform(),
             )
         else:
@@ -81,6 +87,7 @@ class ImpactDataModule(pl.LightningDataModule):
                 image_ids=self.train_image_ids,
                 loader=loader,
                 impactonly=self.impactonly,
+                impactdefinitive=self.impactdefinitive,
                 overlap=self.overlap,
                 transform=self.get_train_transform(),
             )
@@ -88,8 +95,9 @@ class ImpactDataModule(pl.LightningDataModule):
                 data_dir=self.data_dir,
                 image_ids=self.valid_image_ids,
                 loader=loader,
-                overlap=self.overlap,
                 impactonly=self.impactonly,
+                impactdefinitive=self.impactdefinitive,
+                overlap=self.overlap,
                 transform=self.get_valid_transform(),
             )
 
@@ -151,6 +159,22 @@ class ImpactDataModule(pl.LightningDataModule):
         self.train_labels.drop(
             self.train_labels[self.train_labels.frame == 0].index, inplace=True
         )
+
+        if self.impactdefinitive:
+            self.train_labels.drop(
+                self.train_labels[
+                    (self.train_labels.impact == 1)
+                    & (self.train_labels.confidence <= 1)
+                ].index,
+                inplace=True,
+            )
+            self.train_labels.drop(
+                self.train_labels[
+                    (self.train_labels.impact == 1)
+                    & (self.train_labels.visibility == 0)
+                ].index,
+                inplace=True,
+            )
 
         if self.overlap is not None:
             overlap_array = make_overlap_array(self.overlap)

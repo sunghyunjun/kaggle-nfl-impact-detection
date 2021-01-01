@@ -30,6 +30,7 @@ def main():
     parser.add_argument("--num_workers", default=2, type=int)
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--impactonly", action="store_true")
+    parser.add_argument("--impactdefinitive", action="store_true")
     parser.add_argument("--overlap", default=None, type=int)
     parser.add_argument("--oversample", action="store_true")
     parser.add_argument("--seqmode", action="store_true")
@@ -46,6 +47,7 @@ def main():
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         impactonly=args.impactonly,
+        impactdefinitive=args.impactdefinitive,
         overlap=args.overlap,
         oversample=args.oversample,
         seqmode=args.seqmode,

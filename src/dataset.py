@@ -18,6 +18,7 @@ class ImpactDataset(Dataset):
         image_ids=None,
         loader=pil_loader,
         impactonly=False,
+        impactdefinitive=False,
         overlap=None,
         transform=None,
         bboxes_yxyx=True,
@@ -26,23 +27,27 @@ class ImpactDataset(Dataset):
         self.data_dir = data_dir
         self.loader = loader
         self.impactonly = impactonly
+        self.impactdefinitive = impactdefinitive
         self.overlap = overlap
         self.transform = transform
         self.bboxes_yxyx = bboxes_yxyx
 
         filename = "train_labels"
         if self.impactonly:
-            filename += "_impact_only"
+            filename += "_impactonly"
 
         if self.overlap is not None:
             filename += "_overlap" + str(self.overlap)
+
+        if self.impactdefinitive:
+            filename += "_definitive"
 
         filename += ".pkl"
 
         self.filepath = os.path.join(self.data_dir, filename)
 
         # if self.impactonly:
-        #     self.filepath = os.path.join(self.data_dir, "train_labels_impact_only.pkl")
+        #     self.filepath = os.path.join(self.data_dir, "train_labels_impactonly.pkl")
         # else:
         #     self.filepath = os.path.join(self.data_dir, "train_labels.pkl")
 

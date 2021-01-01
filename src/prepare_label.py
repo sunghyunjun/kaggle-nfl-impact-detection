@@ -27,7 +27,11 @@ def make_overlap_array(overlap):
 
 
 def make_pickle_from_labels(
-    dataset_dir="../dataset", debug=False, impactonly=False, overlap=None
+    dataset_dir="../dataset",
+    debug=False,
+    impactonly=False,
+    impactdefinitive=False,
+    overlap=None,
 ):
     train_labels_path = os.path.join(dataset_dir, "train_labels.csv")
     # train_labels = pd.read_csv("../dataset/train_labels.csv").fillna(0)
@@ -43,6 +47,20 @@ def make_pickle_from_labels(
         + ".jpg"
     )
     train_labels.drop(train_labels[train_labels.frame == 0].index, inplace=True)
+
+    if impactdefinitive:
+        train_labels.drop(
+            train_labels[
+                (train_labels.impact == 1) & (train_labels.confidence <= 1)
+            ].index,
+            inplace=True,
+        )
+        train_labels.drop(
+            train_labels[
+                (train_labels.impact == 1) & (train_labels.visibility == 0)
+            ].index,
+            inplace=True,
+        )
 
     if overlap is not None:
         overlap_array = make_overlap_array(overlap)
@@ -106,6 +124,9 @@ def make_pickle_from_labels(
     if overlap is not None:
         filename += "_overlap" + str(overlap)
 
+    if impactdefinitive:
+        filename += "_definitive"
+
     filename = os.path.join(dataset_dir, filename)
     save_obj(data, filename)
 
@@ -116,6 +137,7 @@ def main():
     # parser.add_argument("--debug", type=str, default=False)
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--impactonly", action="store_true")
+    parser.add_argument("--impactdefinitive", action="store_true")
     parser.add_argument("--overlap", type=int)
     args = parser.parse_args()
 
