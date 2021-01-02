@@ -319,6 +319,7 @@ def main():
     parser.add_argument("--num_workers", default=2, type=int)
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--impactonly", action="store_true")
+    parser.add_argument("--impactdefinitive", action="store_true")
     parser.add_argument("--seqmode", action="store_true")
     parser.add_argument("--fullsizeimage", action="store_true")
     args = parser.parse_args()
@@ -332,6 +333,7 @@ def main():
     DEBUG = args.debug
 
     IMPACTONLY = args.impactonly
+    IMPACTDEFINITIVE = args.impactdefinitive
     SEQMODE = args.seqmode
     FULLSIZEIMAGE = args.fullsizeimage
 
@@ -354,6 +356,7 @@ def main():
                 "batch_size": BATCH_SIZE,
                 "num_workers": NUM_WORKERS,
                 "impactonly": IMPACTONLY,
+                "definitive": IMPACTDEFINITIVE,
                 "seqmode": SEQMODE,
                 "fullsizeimage": FULLSIZEIMAGE,
             },
@@ -368,6 +371,7 @@ def main():
         data_dir=DATA_DIR,
         batch_size=BATCH_SIZE,
         num_workers=NUM_WORKERS,
+        impactdefinitive=IMPACTDEFINITIVE,
         seqmode=SEQMODE,
         fullsizeimage=FULLSIZEIMAGE,
     )
