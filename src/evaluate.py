@@ -110,8 +110,8 @@ def make_prediction(model, valid_loader, device, debug=False, fullsizeimage=Fals
     scores_pred = []
     labels_pred = []
 
-    for i, batch in enumerate(tqdm(valid_loader)):
-        if debug and i > 3:
+    for index, batch in enumerate(tqdm(valid_loader)):
+        if debug and index > 3:
             break
 
         image = batch["image"]
