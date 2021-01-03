@@ -21,6 +21,7 @@ class ImpactDetector(pl.LightningModule):
         impactonly=False,
         seqmode=False,
         fullsizeimage=False,
+        anchor_scale=4,
         **kwargs,
     ):
         super().__init__()
@@ -28,16 +29,20 @@ class ImpactDetector(pl.LightningModule):
         self.impactonly = impactonly
         self.seqmode = seqmode
         self.fullsizeimage = fullsizeimage
+        self.anchor_scale = anchor_scale
+        self.init_lr = init_lr
+        self.weight_decay = weight_decay
+        self.max_epochs = max_epochs
+
         self.model = self.get_model(
             model_name=self.model_name,
             impactonly=self.impactonly,
             seqmode=self.seqmode,
             fullsizeimage=self.fullsizeimage,
+            anchor_scale=self.anchor_scale,
         )
         self.predictor = DetBenchPredict(self.model.model)
-        self.init_lr = init_lr
-        self.weight_decay = weight_decay
-        self.max_epochs = max_epochs
+
         self.save_hyperparameters()
 
     def forward(self, x):
@@ -90,6 +95,7 @@ class ImpactDetector(pl.LightningModule):
         impactonly=False,
         seqmode=False,
         fullsizeimage=False,
+        anchor_scale=4,
     ):
         model_name = model_name
         config = get_efficientdet_config(model_name)
@@ -100,7 +106,8 @@ class ImpactDetector(pl.LightningModule):
             # config.image_size = (1280, 1280)
         else:
             config.image_size = (512, 512)
-        # config.anchor_scale = 1
+
+        config.anchor_scale = anchor_scale
         # config.norm_kwargs = dict(eps=0.001, momentum=0.01)
 
         if impactonly:
