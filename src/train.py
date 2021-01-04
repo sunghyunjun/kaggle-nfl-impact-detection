@@ -36,6 +36,7 @@ def main():
     parser.add_argument("--seqmode", action="store_true")
     parser.add_argument("--fullsizeimage", action="store_true")
     parser.add_argument("--anchor_scale", default=4, type=int)
+    parser.add_argument("--fold_index", default=0, type=int)
     parser = ImpactDetector.add_model_specific_args(parser)
     parser = pl.Trainer.add_argparse_args(parser)
     args = parser.parse_args()
@@ -53,6 +54,7 @@ def main():
         oversample=args.oversample,
         seqmode=args.seqmode,
         fullsizeimage=args.fullsizeimage,
+        fold_index=args.fold_index,
     )
 
     # ----------
