@@ -36,6 +36,7 @@ class ImpactDataModule(pl.LightningDataModule):
         seqmode=False,
         fullsizeimage=False,
         foldcombinedview=True,
+        fold_index=0,
     ):
         super().__init__()
         self.data_dir = data_dir
@@ -48,6 +49,7 @@ class ImpactDataModule(pl.LightningDataModule):
         self.seqmode = seqmode
         self.fullsizeimage = fullsizeimage
         self.foldcombinedview = foldcombinedview
+        self.fold_index = fold_index
         self.filepath = os.path.join(self.data_dir, "train_labels.csv")
         self.load_train_csv()
 
@@ -60,6 +62,7 @@ class ImpactDataModule(pl.LightningDataModule):
         self.train_image_ids, self.valid_image_ids = self.make_image_ids_fold(
             n_splits=10,
             foldcombinedview=self.foldcombinedview,
+            fold_index=self.fold_index,
         )
 
         if self.seqmode:
@@ -195,13 +198,15 @@ class ImpactDataModule(pl.LightningDataModule):
         if self.impactonly:
             self.train_labels = self.train_labels[self.train_labels.impact == 1]
 
-    def make_image_ids_fold(self, n_splits=10, foldcombinedview=True):
+    def make_image_ids_fold(self, n_splits=10, foldcombinedview=True, fold_index=0):
         if foldcombinedview:
             train_video_list, valid_video_list = self.make_video_fold_combined_view(
-                n_splits=n_splits
+                n_splits=n_splits, fold_index=fold_index
             )
         else:
-            train_video_list, valid_video_list = self.make_video_fold(n_splits=n_splits)
+            train_video_list, valid_video_list = self.make_video_fold(
+                n_splits=n_splits, fold_index=fold_index
+            )
 
         train_image = self.train_labels[
             self.train_labels.video.isin(train_video_list)
@@ -213,7 +218,7 @@ class ImpactDataModule(pl.LightningDataModule):
         valid_image_ids = valid_image.unique()
         return train_image_ids, valid_image_ids
 
-    def make_video_fold(self, n_splits=10):
+    def make_video_fold(self, n_splits=10, fold_index=0):
         def get_class(x):
             if x >= 22:
                 y = 3
@@ -240,14 +245,14 @@ class ImpactDataModule(pl.LightningDataModule):
             train_fold.append(train_index)
             valid_fold.append(valid_index)
 
-        train_video_list = df_video.iloc[train_fold[0], :].video.tolist()
-        valid_video_list = df_video.iloc[valid_fold[0], :].video.tolist()
+        train_video_list = df_video.iloc[train_fold[fold_index], :].video.tolist()
+        valid_video_list = df_video.iloc[valid_fold[fold_index], :].video.tolist()
 
         self.debug_video_list = [train_video_list, valid_video_list]
 
         return train_video_list, valid_video_list
 
-    def make_video_fold_combined_view(self, n_splits=10):
+    def make_video_fold_combined_view(self, n_splits=10, fold_index=0):
         def get_class(x):
             if x >= 22:
                 y = 3
@@ -278,10 +283,10 @@ class ImpactDataModule(pl.LightningDataModule):
             valid_fold.append(valid_index)
 
         train_video_endzone_list = df_video_endzone.iloc[
-            train_fold[0], :
+            train_fold[fold_index], :
         ].video.tolist()
         valid_video_endzone_list = df_video_endzone.iloc[
-            valid_fold[0], :
+            valid_fold[fold_index], :
         ].video.tolist()
 
         train_video_sideline_list = [
