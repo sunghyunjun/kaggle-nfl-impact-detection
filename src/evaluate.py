@@ -240,9 +240,9 @@ def make_prediction_tta(model, valid_loader, device, debug=False, fullsizeimage=
         scores_cat = torch.cat((scores_org, scores_aug), axis=1)
         labels_cat = torch.cat((labels_org, labels_aug), axis=1)
 
-        boxes_nms = torch.zeros((batch_size, 100, 4))
-        scores_nms = torch.zeros((batch_size, 100))
-        labels_nms = torch.zeros((batch_size, 100))
+        boxes_nms = torch.zeros((batch_size, 100, 4)).to(device)
+        scores_nms = torch.zeros((batch_size, 100)).to(device)
+        labels_nms = torch.zeros((batch_size, 100)).to(device)
 
         for j in range(batch_size):
             top_detection_idx = batched_nms(
@@ -260,19 +260,271 @@ def make_prediction_tta(model, valid_loader, device, debug=False, fullsizeimage=
             boxes_nms[j, :, :] = torch.cat(
                 (
                     boxes_cat[j, top_detection_idx],
-                    torch.zeros((100 - len(top_detection_idx), 4)),
+                    torch.zeros((100 - len(top_detection_idx), 4)).to(device),
                 ),
             )
             scores_nms[j, :] = torch.cat(
                 (
                     scores_cat[j, top_detection_idx],
-                    torch.zeros((100 - len(top_detection_idx))),
+                    torch.zeros((100 - len(top_detection_idx))).to(device),
                 )
             )
             labels_nms[j, :] = torch.cat(
                 (
                     labels_cat[j, top_detection_idx],
-                    torch.zeros((100 - len(top_detection_idx))),
+                    torch.zeros((100 - len(top_detection_idx))).to(device),
+                )
+            )
+
+        boxes = boxes_nms.detach().cpu().numpy()
+        scores = scores_nms.detach().cpu().numpy()
+        labels = labels_nms.detach().cpu().numpy().astype(np.int32)
+
+        boxes[:, :, 0] = boxes[:, :, 0] * 1280 / resize_width
+        boxes[:, :, 1] = boxes[:, :, 1] * 720 / resize_height
+        boxes[:, :, 2] = boxes[:, :, 2] * 1280 / resize_width
+        boxes[:, :, 3] = boxes[:, :, 3] * 720 / resize_height
+
+        boxes = boxes.astype(np.int32)
+
+        boxes[:, :, 0] = boxes[:, :, 0].clip(min=0, max=1280 - 1)
+        boxes[:, :, 1] = boxes[:, :, 1].clip(min=0, max=720 - 1)
+        boxes[:, :, 2] = boxes[:, :, 2].clip(min=0, max=1280 - 1)
+        boxes[:, :, 3] = boxes[:, :, 3].clip(min=0, max=720 - 1)
+
+        image_ids.extend(image_id)
+        boxes_gt.extend(boxes_)
+        labels_gt.extend(labels_)
+        boxes_pred.extend(boxes)
+        scores_pred.extend(scores)
+        labels_pred.extend(labels)
+
+    return image_ids, boxes_gt, labels_gt, boxes_pred, scores_pred, labels_pred
+
+
+def make_prediction_ensemble(
+    model_1, model_2, valid_loader, device, debug=False, fullsizeimage=False
+):
+    if fullsizeimage:
+        resize_height = 640
+        resize_width = 1280
+    else:
+        resize_height = 512
+        resize_width = 512
+
+    image_ids = []
+    boxes_gt = []
+    labels_gt = []
+    boxes_pred = []
+    scores_pred = []
+    labels_pred = []
+
+    for index, batch in enumerate(tqdm(valid_loader)):
+        if debug and index > 3:
+            break
+
+        image = batch["image"]
+        boxes_ = batch["bboxes"]
+        labels_ = batch["labels"]
+        image_id = batch["image_id"]
+
+        batch_size = len(image_id)
+
+        for i in range(batch_size):
+            boxes_[i] = boxes_[i][:, [1, 0, 3, 2]].numpy()
+
+            boxes_[i][:, 0] = boxes_[i][:, 0] * 1280 / resize_width
+            boxes_[i][:, 1] = boxes_[i][:, 1] * 720 / resize_height
+            boxes_[i][:, 2] = boxes_[i][:, 2] * 1280 / resize_width
+            boxes_[i][:, 3] = boxes_[i][:, 3] * 720 / resize_height
+
+            boxes_[i] = boxes_[i].astype(np.int32)
+
+            boxes_[i][:, 0] = boxes_[i][:, 0].clip(min=0, max=1280 - 1)
+            boxes_[i][:, 1] = boxes_[i][:, 1].clip(min=0, max=720 - 1)
+            boxes_[i][:, 2] = boxes_[i][:, 2].clip(min=0, max=1280 - 1)
+            boxes_[i][:, 3] = boxes_[i][:, 3].clip(min=0, max=720 - 1)
+
+            labels_[i] = labels_[i].numpy().astype(np.int32)
+
+        prediction = model_1(image.to(device))
+
+        prediction_2 = model_2(image.to(device))
+
+        boxes_org = prediction[:, :, :4]
+        scores_org = prediction[:, :, 4]
+        labels_org = prediction[:, :, 5]
+
+        boxes_2 = prediction_2[:, :, :4]
+        scores_2 = prediction_2[:, :, 4]
+        labels_2 = prediction_2[:, :, 5]
+
+        boxes_cat = torch.cat((boxes_org, boxes_2), axis=1)
+        scores_cat = torch.cat((scores_org, scores_2), axis=1)
+        labels_cat = torch.cat((labels_org, labels_2), axis=1)
+
+        boxes_nms = torch.zeros((batch_size, 100, 4)).to(device)
+        scores_nms = torch.zeros((batch_size, 100)).to(device)
+        labels_nms = torch.zeros((batch_size, 100)).to(device)
+
+        for j in range(batch_size):
+            top_detection_idx = batched_nms(
+                boxes_cat[j, :, :],
+                scores_cat[j, :],
+                labels_cat[j, :],
+                iou_threshold=0.5,
+            )
+            # print(scores_cat[j, :].shape, labels_cat[j, :].shape)
+            # print(top_detection_idx.shape)
+            top_detection_idx = top_detection_idx[:100]
+            # print(top_detection_idx.shape)
+            # print(top_detection_idx)
+
+            boxes_nms[j, :, :] = torch.cat(
+                (
+                    boxes_cat[j, top_detection_idx],
+                    torch.zeros((100 - len(top_detection_idx), 4)).to(device),
+                ),
+            )
+            scores_nms[j, :] = torch.cat(
+                (
+                    scores_cat[j, top_detection_idx],
+                    torch.zeros((100 - len(top_detection_idx))).to(device),
+                )
+            )
+            labels_nms[j, :] = torch.cat(
+                (
+                    labels_cat[j, top_detection_idx],
+                    torch.zeros((100 - len(top_detection_idx))).to(device),
+                )
+            )
+
+        boxes = boxes_nms.detach().cpu().numpy()
+        scores = scores_nms.detach().cpu().numpy()
+        labels = labels_nms.detach().cpu().numpy().astype(np.int32)
+
+        boxes[:, :, 0] = boxes[:, :, 0] * 1280 / resize_width
+        boxes[:, :, 1] = boxes[:, :, 1] * 720 / resize_height
+        boxes[:, :, 2] = boxes[:, :, 2] * 1280 / resize_width
+        boxes[:, :, 3] = boxes[:, :, 3] * 720 / resize_height
+
+        boxes = boxes.astype(np.int32)
+
+        boxes[:, :, 0] = boxes[:, :, 0].clip(min=0, max=1280 - 1)
+        boxes[:, :, 1] = boxes[:, :, 1].clip(min=0, max=720 - 1)
+        boxes[:, :, 2] = boxes[:, :, 2].clip(min=0, max=1280 - 1)
+        boxes[:, :, 3] = boxes[:, :, 3].clip(min=0, max=720 - 1)
+
+        image_ids.extend(image_id)
+        boxes_gt.extend(boxes_)
+        labels_gt.extend(labels_)
+        boxes_pred.extend(boxes)
+        scores_pred.extend(scores)
+        labels_pred.extend(labels)
+
+    return image_ids, boxes_gt, labels_gt, boxes_pred, scores_pred, labels_pred
+
+
+def make_prediction_ensemble_v2(
+    model_1, model_2, model_3, valid_loader, device, debug=False, fullsizeimage=False
+):
+    if fullsizeimage:
+        resize_height = 640
+        resize_width = 1280
+    else:
+        resize_height = 512
+        resize_width = 512
+
+    image_ids = []
+    boxes_gt = []
+    labels_gt = []
+    boxes_pred = []
+    scores_pred = []
+    labels_pred = []
+
+    for index, batch in enumerate(tqdm(valid_loader)):
+        if debug and index > 3:
+            break
+
+        image = batch["image"]
+        boxes_ = batch["bboxes"]
+        labels_ = batch["labels"]
+        image_id = batch["image_id"]
+
+        batch_size = len(image_id)
+
+        for i in range(batch_size):
+            boxes_[i] = boxes_[i][:, [1, 0, 3, 2]].numpy()
+
+            boxes_[i][:, 0] = boxes_[i][:, 0] * 1280 / resize_width
+            boxes_[i][:, 1] = boxes_[i][:, 1] * 720 / resize_height
+            boxes_[i][:, 2] = boxes_[i][:, 2] * 1280 / resize_width
+            boxes_[i][:, 3] = boxes_[i][:, 3] * 720 / resize_height
+
+            boxes_[i] = boxes_[i].astype(np.int32)
+
+            boxes_[i][:, 0] = boxes_[i][:, 0].clip(min=0, max=1280 - 1)
+            boxes_[i][:, 1] = boxes_[i][:, 1].clip(min=0, max=720 - 1)
+            boxes_[i][:, 2] = boxes_[i][:, 2].clip(min=0, max=1280 - 1)
+            boxes_[i][:, 3] = boxes_[i][:, 3].clip(min=0, max=720 - 1)
+
+            labels_[i] = labels_[i].numpy().astype(np.int32)
+
+        prediction = model_1(image.to(device))
+
+        prediction_2 = model_2(image.to(device))
+
+        prediction_3 = model_3(image.to(device))
+
+        boxes_org = prediction[:, :, :4]
+        scores_org = prediction[:, :, 4]
+        labels_org = prediction[:, :, 5]
+
+        boxes_2 = prediction_2[:, :, :4]
+        scores_2 = prediction_2[:, :, 4]
+        labels_2 = prediction_2[:, :, 5]
+
+        boxes_3 = prediction_3[:, :, :4]
+        scores_3 = prediction_3[:, :, 4]
+        labels_3 = prediction_3[:, :, 5]
+
+        boxes_cat = torch.cat((boxes_org, boxes_2, boxes_3), axis=1)
+        scores_cat = torch.cat((scores_org, scores_2, scores_3), axis=1)
+        labels_cat = torch.cat((labels_org, labels_2, labels_3), axis=1)
+
+        boxes_nms = torch.zeros((batch_size, 100, 4)).to(device)
+        scores_nms = torch.zeros((batch_size, 100)).to(device)
+        labels_nms = torch.zeros((batch_size, 100)).to(device)
+
+        for j in range(batch_size):
+            top_detection_idx = batched_nms(
+                boxes_cat[j, :, :],
+                scores_cat[j, :],
+                labels_cat[j, :],
+                iou_threshold=0.5,
+            )
+            # print(scores_cat[j, :].shape, labels_cat[j, :].shape)
+            # print(top_detection_idx.shape)
+            top_detection_idx = top_detection_idx[:100]
+            # print(top_detection_idx.shape)
+            # print(top_detection_idx)
+
+            boxes_nms[j, :, :] = torch.cat(
+                (
+                    boxes_cat[j, top_detection_idx],
+                    torch.zeros((100 - len(top_detection_idx), 4)).to(device),
+                ),
+            )
+            scores_nms[j, :] = torch.cat(
+                (
+                    scores_cat[j, top_detection_idx],
+                    torch.zeros((100 - len(top_detection_idx))).to(device),
+                )
+            )
+            labels_nms[j, :] = torch.cat(
+                (
+                    labels_cat[j, top_detection_idx],
+                    torch.zeros((100 - len(top_detection_idx))).to(device),
                 )
             )
 
@@ -485,6 +737,12 @@ def main():
         default="../notebook/d3-test-0.93.ckpt",
         help="path to checkpoint",
     )
+    parser.add_argument(
+        "--checkpoint2", default=None, help="path to checkpoint of second model"
+    )
+    parser.add_argument(
+        "--checkpoint3", default=None, help="path to checkpoint of third model"
+    )
     parser.add_argument("--batch_size", default=4, type=int)
     parser.add_argument("--num_workers", default=2, type=int)
     parser.add_argument("--debug", action="store_true")
@@ -493,11 +751,14 @@ def main():
     parser.add_argument("--seqmode", action="store_true")
     parser.add_argument("--fullsizeimage", action="store_true")
     parser.add_argument("--tta", action="store_true")
+    parser.add_argument("--fold_index", default=0, type=int)
     args = parser.parse_args()
 
     EXP_NAME = args.exp_name
     DATA_DIR = args.dataset_dir
     CHECKPOINT = args.checkpoint
+    CHECKPOINT2 = args.checkpoint2
+    CHECKPOINT3 = args.checkpoint3
     BATCH_SIZE = args.batch_size
     NUM_WORKERS = args.num_workers
 
@@ -508,6 +769,8 @@ def main():
     SEQMODE = args.seqmode
     FULLSIZEIMAGE = args.fullsizeimage
     TTA = args.tta
+
+    FOLD_INDEX = args.fold_index
 
     if IMPACTONLY:
         IMPACT_CLASS = 1
@@ -546,6 +809,7 @@ def main():
         impactdefinitive=IMPACTDEFINITIVE,
         seqmode=SEQMODE,
         fullsizeimage=FULLSIZEIMAGE,
+        fold_index=FOLD_INDEX,
     )
 
     dm.prepare_data()
@@ -561,33 +825,80 @@ def main():
     impact_detector = ImpactDetector.load_from_checkpoint(CHECKPOINT)
     impact_detector.to(device)
     impact_detector.eval()
+
+    if CHECKPOINT2 is not None:
+        impact_detector2 = ImpactDetector.load_from_checkpoint(CHECKPOINT2)
+        impact_detector2.to(device)
+        impact_detector2.eval()
+
+    if CHECKPOINT3 is not None:
+        impact_detector3 = ImpactDetector.load_from_checkpoint(CHECKPOINT3)
+        impact_detector3.to(device)
+        impact_detector3.eval()
+
     torch.set_grad_enabled(False)
 
     # ----------
     # evaluation
     # ----------
-    if not TTA:
-        (
-            image_ids,
-            boxes_gt,
-            labels_gt,
-            boxes_pred,
-            scores_pred,
-            labels_pred,
-        ) = make_prediction(
-            impact_detector, dm.val_dataloader(), device, DEBUG, FULLSIZEIMAGE
-        )
+    if CHECKPOINT2 is not None:
+        if CHECKPOINT3 is not None:
+            (
+                image_ids,
+                boxes_gt,
+                labels_gt,
+                boxes_pred,
+                scores_pred,
+                labels_pred,
+            ) = make_prediction_ensemble_v2(
+                impact_detector,
+                impact_detector2,
+                impact_detector3,
+                dm.val_dataloader(),
+                device,
+                DEBUG,
+                FULLSIZEIMAGE,
+            )
+
+        else:
+            (
+                image_ids,
+                boxes_gt,
+                labels_gt,
+                boxes_pred,
+                scores_pred,
+                labels_pred,
+            ) = make_prediction_ensemble(
+                impact_detector,
+                impact_detector2,
+                dm.val_dataloader(),
+                device,
+                DEBUG,
+                FULLSIZEIMAGE,
+            )
     else:
-        (
-            image_ids,
-            boxes_gt,
-            labels_gt,
-            boxes_pred,
-            scores_pred,
-            labels_pred,
-        ) = make_prediction_tta(
-            impact_detector, dm.val_dataloader(), device, DEBUG, FULLSIZEIMAGE
-        )
+        if not TTA:
+            (
+                image_ids,
+                boxes_gt,
+                labels_gt,
+                boxes_pred,
+                scores_pred,
+                labels_pred,
+            ) = make_prediction(
+                impact_detector, dm.val_dataloader(), device, DEBUG, FULLSIZEIMAGE
+            )
+        else:
+            (
+                image_ids,
+                boxes_gt,
+                labels_gt,
+                boxes_pred,
+                scores_pred,
+                labels_pred,
+            ) = make_prediction_tta(
+                impact_detector, dm.val_dataloader(), device, DEBUG, FULLSIZEIMAGE
+            )
 
     gt_df = make_gt_df(image_ids, boxes_gt, labels_gt)
 
@@ -635,7 +946,7 @@ def main():
                 gt_df, pred_bothzone_filtered_df
             )
             if not DEBUG:
-                neptune.log_metric(f"{thres:.2f}-{iou_thres:.2f}", f1_score)
+                neptune.log_metric(f"{thres:.2f}-{iou_thres:.2f}-", f1_score)
 
 
 if __name__ == "__main__":
