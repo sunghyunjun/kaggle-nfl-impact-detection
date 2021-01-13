@@ -47,6 +47,12 @@ def prediction_filtered(boxes, scores, labels, threshold=0.2):
 
 
 def iou(bbox1, bbox2):
+    """
+    Competition metric, F1 score.
+    Original code from https://www.kaggle.com/nvnnghia/evaluation-metrics
+    For more information about it:
+    https://www.kaggle.com/c/nfl-impact-detection/discussion/197672#1095339
+    """
     bbox1 = [float(x) for x in bbox1]
     bbox2 = [float(x) for x in bbox2]
 
@@ -73,6 +79,12 @@ def iou(bbox1, bbox2):
 
 
 def precision_calc(gt_boxes, pred_boxes):
+    """
+    Competition metric, F1 score.
+    Original code from https://www.kaggle.com/nvnnghia/evaluation-metrics
+    For more information about it:
+    https://www.kaggle.com/c/nfl-impact-detection/discussion/197672#1095339
+    """
     cost_matix = np.ones((len(gt_boxes), len(pred_boxes)))
     for i, box1 in enumerate(gt_boxes):
         for j, box2 in enumerate(pred_boxes):
@@ -666,6 +678,9 @@ def calc_metric(gt_df, pred_df):
 
 
 def make_pred_filtered_df(pred_df, iou_threshold=0.5):
+    """
+    Post-Processing. Filter bbox over +- 4 frames.
+    """
     dropIDX = []
     for keys in pred_df.groupby("video").size().to_dict().keys():
         tmp_df = pred_df.query("video == @keys")
@@ -689,6 +704,12 @@ def make_pred_filtered_df(pred_df, iou_threshold=0.5):
 
 
 def make_pred_bothzone_filtered_df(pred_df):
+    """
+    Post-Processing.
+    Original code from https://www.kaggle.com/artkulak/2class-object-detection-inference-with-filtering
+    Remove all boxes which are not present in both Sidezone and Endzone views.
+
+    """
     dropIDX = []
     for keys in pred_df.groupby(["gameKey", "playID"]).size().to_dict().keys():
         tmp_df = pred_df.query("gameKey == @keys[0] and playID == @keys[1]")
