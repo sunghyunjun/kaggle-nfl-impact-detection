@@ -24,6 +24,7 @@ Download Competition data [on the Kaggle competition page][kaggle_dataset_link]
 
 ```bash
 kaggle competitions download -c nfl-impact-detection
+unzip -x nfl-impact-detection.zip ./dataset
 ```
 
 Create image files from train and test video files.
@@ -39,13 +40,11 @@ python prepare_label.py --dataset_dir=./dataset \
                         --impactonly \
 ```
 
-- Flags
+`--impactonly` : Make train_labels only with (impact = 1)
 
---impactonly
+`--impactdefinitive` : Definitive helmet impacts are defined as meeting three criteria. (impact = 1, confidence > 1, visibility > 0)
 
---impactdefinitive
-
---overlap
+`--overlap=N` : Impact value of overlapped frames before/after ground truth frame is set as 1.
 
 ## Train
 
@@ -70,49 +69,19 @@ python train.py --dataset_dir=./dataset \
                 --progress_bar_refresh_rate=30 \
 ```
 
-- Flags
-
---impactonly
-
---impactdefinitive
-
---overlap
-
---seqmode
-
---fullsizeimage
-
---fold_index
-
---anchor_scale
+`--fullsizeimage` : use image size of (width, height) = (1280, 640)
 
 ## Evaluate
 
 ```bash
-python evaluate.py --dataset_dir={DATA_DIR} \
-                   --checkpoint={CHECKPOINT} \
-                   --exp_name={EXP_NAME} \
+python evaluate.py --dataset_dir=./dataset \
+                   --checkpoint=your_checkpoint \
+                   --exp_name=your_exp_name \
                    --batch_size=4 \
                    --num_workers=2 \
                    --impactonly \
                    --fullsizeimage \
                    --impactdefinitive \
-                   --checkpoint2={CHECKPOINT2} \
-                   --checkpoint3={CHECKPOINT3} \
+                   --checkpoint2=checkpoint2_for_ensemble \
+                   --checkpoint3=checkpoint3_for_ensemble \
 ```
-
-- Flags
-
---impactonly
-
---impactdefinitive
-
---overlap
-
---seqmode
-
---fullsizeimage
-
---tta
-
---fold_index
